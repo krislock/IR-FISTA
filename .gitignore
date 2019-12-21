@@ -1,0 +1,5 @@
+.DS_Store
+*.swp
+.ipynb_checkpoints/
+FISTA.html
+*.pdf
