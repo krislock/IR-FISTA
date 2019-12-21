@@ -2,4 +2,4 @@
 *.swp
 .ipynb_checkpoints/
 FISTA.html
-*.pdf
+figs/
