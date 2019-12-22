@@ -1,3 +1,36 @@
+using JuMP, CSDP
+
+function optimalityconditions(U, H, X, y, Λ)
+    Rp = norm(1 .- diag(X))
+    Rd = norm(H.*H.*(X .- U) .+ Diagonal(y) .- Λ)
+    @show Rp
+    @show Rd
+    @show dot(X, Λ)
+    @show minimum(eigvals(X))
+    @show minimum(eigvals(Λ))
+    return nothing
+end
+
+
+function ncm(U, H; verbose=false)
+    # Initialize model with correlation matrix constraints
+    m = Model(with_optimizer(CSDP.Optimizer))
+    if !verbose
+        set_silent(m)
+    end
+    @variable(m, X[1:n,1:n], Symmetric)
+    @constraint(m, diagcon, diag(X) .== 1)
+    @constraint(m, psdcon, X in PSDCone())
+    R = H.*(X .- U)
+    @objective(m, Min, 0.5*dot(R, R))
+    optimize!(m)
+    Xval = value.(X)
+    y = dual.(diagcon)
+    Λ = dual.(psdcon)
+    return Xval, y, Λ
+end
+
+
 struct NCMstorage
     n::Int
     memlim::Int
@@ -323,5 +356,5 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         println("Converged after $(length(fvals)) function evaluations.")
     end
     
-    return Xnew, y, fvals, resvals
+    return Xnew, y, Λ, fvals, resvals
 end
