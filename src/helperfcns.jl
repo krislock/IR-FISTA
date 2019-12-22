@@ -1,7 +1,3 @@
-function isdiagallpos(X)
-    return all(@inbounds X[i,i] > 0 for i=1:size(X,1))
-end
-
 function plusdiag!(M::AbstractArray{T,2}, y::Vector{T}) where T
     for i=eachindex(y)
         @inbounds M[i,i] += y[i]

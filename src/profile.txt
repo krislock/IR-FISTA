@@ -1,0 +1,33 @@
+Before:
+ncm             100.0%   25050
+  calllbfgsb     97.7%   24470
+    dualobj      97.5%   24427
+      ∇fY         2.7%     670
+      M for X     1.2%     312
+      myproj     79.0%   19791
+        dsyevr   78.8%   19739
+      Λ           1.4%     358
+      Γ           0.8%     176
+      Xnew        0.6%     163
+      V           4.1%    1018
+      rd          3.0%     762
+      M for fval  1.7%     419
+      fval        1.2%     302
+      dualobjval  1.3%     336
+
+After:
+ncm             100.0%   23784
+  calllbfgsb     96.8%   23027
+    dualobj      96.7%   22994
+      ∇fY         1.1%     258
+      M for X     0.6%     153
+      myproj     85.0%   20221
+        dsyevr   84.6%   20128
+      Λ           0.7%     169
+      Γ           0.2%      53
+      Xnew        0.6%     151
+      V           1.7%     398
+      M for fval  1.5%     345
+      fval        1.5%     354
+      M for rd    0.7%     160
+      rd          1.9%     455

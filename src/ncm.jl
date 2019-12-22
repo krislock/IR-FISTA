@@ -1,17 +1,17 @@
-using JuMP, CSDP
+#using JuMP, CSDP
 
 function optimalityconditions(U, H, X, y, Λ)
-    Rp = norm(1 .- diag(X))
-    Rd = norm(H.*H.*(X .- U) .+ Diagonal(y) .- Λ)
-    @show Rp
-    @show Rd
+    rp = norm(1 .- diag(X))
+    rd = norm(H.*H.*(X .- U) .+ Diagonal(y) .- Λ)
+    @show rp
+    @show rd
     @show dot(X, Λ)
     @show minimum(eigvals(X))
     @show minimum(eigvals(Λ))
     return nothing
 end
 
-
+#=
 function ncm(U, H; verbose=false)
     # Initialize model with correlation matrix constraints
     m = Model(with_optimizer(CSDP.Optimizer))
@@ -29,6 +29,7 @@ function ncm(U, H; verbose=false)
     Λ = dual.(psdcon)
     return Xval, y, Λ
 end
+=#
 
 
 struct NCMstorage
@@ -103,8 +104,9 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         α=0.0,
         σ=1.0,
         tol=1e-2,
-        kmax=2000, 
-        f_calls_limit=2000, 
+        exact=false,        
+        kmax=4000, 
+        f_calls_limit=8000, 
         verbose=false,
         lbfgsbverbose=false,
         cleanvals=true,
@@ -161,6 +163,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
     issymmetric(U) || error("U must be symmetric")
     issymmetric(H) || error("H must be symmetric")
     size(U)==size(H) || error("U and H must be the same size")
+    any(hij != 0.0 for hij in H) || error("H must be nonzero")
     
     n = size(U, 1)
     n==storage.n || error("n != storage.n")
@@ -192,68 +195,95 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
     # Evaluates dual objective function and its gradient
     function dualobj!(gg, y, 
             H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, 
-            fvals, resvals, Rpvals, Rdvals, L, τ)
+            fvals, resvals, rpvals, rdvals, L, τ)
 
+        τdL = τ/L
+        Ldτ = L/τ
+
+        #=
         ∇fY.data .= H2.*(Y .- U)
         M .= ∇fY; plusdiag!(M, y)  # M = ∇f(Y) + Diag(y)
-        M.data .= Y .- (τ/L).*M    # M = Y - (τ/L)*(∇f(Y) + Diag(y))
+        M.data .= Y .- τdL.*M      # M = Y - (τ/L)*(∇f(Y) + Diag(y))
         X .= M
+        =#
+        @inbounds for j=1:n
+            for i=1:j
+                ∇fY.data[i,j] = H2[i,j]*(Y[i,j] - U[i,j])
+                M.data[i,j] = Y[i,j] - τdL*∇fY[i,j]
+                X.data[i,j] = M[i,j]
+            end
+            M.data[j,j] -= τdL*y[j]
+            X.data[j,j] = M[j,j]
+        end
         myproj(X)
 
         # Update Λ and Γ
-        Λ.data .= (L/τ).*(X .- M)       # Λ is psd
-        Γ.data .= .-Λ; plusdiag!(Γ, y)  # Γ = Diag(y) - Λ
+        #Λ.data .= Ldτ.*(X .- M)         # Λ is psd
+        #Γ.data .= .-Λ; plusdiag!(Γ, y)  # Γ = Diag(y) - Λ
 
         # Ensure that diag(Xnew).==1 exactly
-        if isdiagallpos(X)
-            for i=1:n
-                @inbounds d[i] = 1/sqrt(X[i,i])
+        @inbounds for j=1:n
+            if X[j,j] > 0.0
+                d[j] = 1.0/sqrt(X[j,j])
+            else
+                d[j] = 1.0
             end
-            for j=1:n
-                for i=1:n
-                    @inbounds Xnew.data[i,j] = d[i]*d[j]*X[i,j]
-                end
+        end
+        @inbounds for j=1:n
+            for i=1:j
+                Λ.data[i,j] = Ldτ*(X[i,j] - M[i,j])
+                Γ.data[i,j] = -Λ[i,j]
+                Xnew.data[i,j] = d[i]*d[j]*X[i,j]
+                V.data[i,j] = ∇fY[i,j] + Ldτ*(Xnew[i,j] - Y[i,j]) + Γ[i,j]
+                M.data[i,j] = H[i,j]*(Xnew[i,j] - U[i,j])
             end
+            Γ.data[j,j] += y[j]
+            V.data[j,j] += y[j]
         end
 
         # Update V
-        V.data .= ∇fY .+ (L/τ).*(Xnew .- Y) .+ Γ
-
-        # Compute and store the optim. cond. residual
-        for i=1:n
-            @inbounds d[i] = 1 - Xnew[i,i]
-        end
-        Rp = norm(d)/(1 + √n)
-        Rd = norm(M.data .= H2.*(Xnew .- U) .+ Γ)
-        push!(Rpvals, Rp)
-        push!(Rdvals, Rd)
-        push!(resvals, max(Rp,Rd))
+        # V.data .= ∇fY .+ Ldτ.*(Xnew .- Y) .+ Γ
 
         # Compute and store the objective function
-        M.data .= H.*(Xnew .- U)
+        #M.data .= H.*(Xnew .- U)
         push!(fvals, 0.5*dot(M,M))
 
+        # Compute and store the optim. cond. residual
+        @inbounds for j=1:n
+            d[j] = 1.0 - Xnew[j,j]
+            for i=1:j
+                M.data[i,j] = H[i,j]*M[i,j] + Γ[i,j]
+            end
+        end
+        rp = norm(d)/(1 + √n)
+        #M.data .= H2.*(Xnew .- U) .+ Γ
+        rd = norm(M)
+        push!(rpvals, rp)
+        push!(rdvals, rd)
+        push!(resvals, max(rp,rd))
+
         # Compute the gradient of the dual function
-        for i=1:n
-            @inbounds gg[i] = 1 - X[i,i]
+        @inbounds for j=1:n
+            gg[j] = 1.0 - X[j,j]
         end
 
         w = view(myproj.w, 1:myproj.m[])
-        return sum(y) + (L/2τ)*(dot(w,w) - dot(Y,Y))
+        #return sum(y) + 0.5*Ldτ*(dot(w,w) - dot(Y,Y))
+        return sum(y) + 0.5*Ldτ*dot(w,w)
     end
     
     k = 0
     t = t0
     gtol = NaN
-    Rp = Rd = Inf
+    rp = rd = Inf
     innersuccess = true
     fvals   = Float64[]
     resvals = Float64[]
-    Rpvals  = Float64[]
-    Rdvals  = Float64[]
+    rpvals  = Float64[]
+    rdvals  = Float64[]
     
     while ( #innersuccess && 
-            max(Rp, Rd) > tol && 
+            max(rp, rd) > tol && 
             k < kmax && 
             length(fvals) < f_calls_limit )
         
@@ -278,16 +308,21 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         maxfgcalls = f_calls_limit - length(fvals)
 
         if method==:IAPG
-            gtol = (1 + √n)*min(1/tnew^3.1, 0.2*Rd)
+            gtol = (1 + √n)*min(1/tnew^3.1, 0.2*rd)
+        end
+
+        if exact
+            gtol = 0.0
         end
         
         # Solve the subproblem
         innersuccess, linesearchcalls = calllbfgsb!(dualobj!, g, y, 
-            H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, fvals, resvals, Rpvals, Rdvals, L, τ, α, σ,
+            H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, fvals, resvals, rpvals, rdvals, L, τ, α, σ,
             n, memlim, wa, iwa, nbd, lower, upper, task, csave, lsave, isave, dsave,
             method=method,
             maxfgcalls=maxfgcalls,
             gtol=gtol,
+            exact=exact,            
             verbose=lbfgsbverbose,
         )
         innersuccess || println("Failed to solve subproblem.")
@@ -298,8 +333,8 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
             cleanvals!(resvals, linesearchcalls)
         end
 
-        Rp = Rpvals[end]
-        Rd = Rdvals[end]
+        rp = rpvals[end]
+        rd = rdvals[end]
         ε = dot(Xnew, Λ)
         δ = norm(V)
         dist = norm(M.data .= Xnew .- Y)
@@ -307,9 +342,9 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         if verbose
             mod(k, 20)==1 &&
             @printf("%4s %8s %10s %10s %14s %10s %10s %10s %10s %10s\n", 
-                "k", "fgcalls", "||g||", "gtol", "f(X)", "Rp", "Rd", "<X,Λ>", "||V||", "||X-Y||")
+                "k", "fgcalls", "||g||", "gtol", "f(X)", "rp", "rd", "<X,Λ>", "||V||", "||X-Y||")
             @printf("%4d %8d %10.2e %10.2e %14.6e %10.2e %10.2e %10.2e %10.2e %10.2e\n", 
-                k, fgcalls, norm(g), gtol, fvals[end], Rp, Rd, ε, δ, dist)
+                k, fgcalls, norm(g), gtol, fvals[end], rp, rd, ε, δ, dist)
         end
         
         if method==:IR
@@ -350,7 +385,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         t = tnew
     end
     
-    if max(Rp, Rd) > tol
+    if max(rp, rd) > tol
         println("Failed to converge after $(length(fvals)) function evaluations.")
     else
         println("Converged after $(length(fvals)) function evaluations.")

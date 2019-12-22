@@ -11,7 +11,7 @@ function tester(n, γ; memlim=10, verbose=false)
 
     @time ncm(U, H, myproj, storage, verbose=verbose)
     @time ncm(U, H, myproj, storage, method=:IR, τ=0.95, verbose=verbose)
+    return nothing
 end
 
-tester(2, 1.0)
-tester(100, 1.0)
+tester(10, 0.1)
