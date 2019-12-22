@@ -12,7 +12,7 @@ function calllbfgsb!(func!, g, y,
         method=:IAPG,
         maxfgcalls=100,
         gtol=1e-2,
-        exact=false,        
+        exact=false,
         iprint=-1,
         verbose=false,
     )
