@@ -98,6 +98,15 @@ struct NCMstorage
 end
 
 
+struct NCMresults
+    X::Symmetric{Float64,Array{Float64,2}}
+    y::Vector{Float64}
+    Λ::Symmetric{Float64,Array{Float64,2}}
+    fvals::Vector{Float64}
+    resvals::Vector{Float64}
+end
+
+
 function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, storage::NCMstorage; 
         method=:IAPG, 
         τ=1.0,
@@ -268,7 +277,6 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         end
 
         w = view(myproj.w, 1:myproj.m[])
-        #return sum(y) + 0.5*Ldτ*(dot(w,w) - dot(Y,Y))
         return sum(y) + 0.5*Ldτ*dot(w,w)
     end
     
@@ -391,5 +399,5 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         println("Converged after $(length(fvals)) function evaluations.")
     end
     
-    return Xnew, y, Λ, fvals, resvals
+    return NCMresults(Xnew, y, Λ, fvals, resvals)
 end
