@@ -7,7 +7,7 @@ const NEW_X = b"NEW_X"
 
 function calllbfgsb!(func!, g, y, 
         H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, 
-        fvals, resvals, rpvals, rdvals, L, τ, α, σ,
+        fgcount, fvals, resvals, rpvals, rdvals, L, τ, α, σ,
         n, memlim, wa, iwa, nbd, lower, upper, task, csave, lsave, isave, dsave;
         method=:IAPG,
         maxfgcalls=100,
@@ -15,6 +15,7 @@ function calllbfgsb!(func!, g, y,
         exact=false,
         iprint=-1,
         verbose=false,
+        cleanvals=true,
     )
 
     nRef = Ref{Cint}(n)
@@ -36,8 +37,7 @@ function calllbfgsb!(func!, g, y,
     pgtol = Ref{Cdouble}(0.0)
 
     fgcalls = 0
-    linesearchcalls = [0]
-    sizehint!(linesearchcalls, 8)
+    linesearchcount = 0
     
     StopBFGS = false
     successful = true
@@ -52,16 +52,28 @@ function calllbfgsb!(func!, g, y,
             fRef, g, factr, pgtol, wa, iwa, task,
             iprint, csave, lsave, isave, dsave)
 
+        if cleanvals && linesearchcount > 1
+            a, b = fgcount[1]-linesearchcount+1, fgcount[1]
+            inds = a:b-1
+            fill!(view(fvals,   inds), fvals[b]  )
+            fill!(view(resvals, inds), resvals[b])
+            fill!(view(rpvals,  inds), rpvals[b] )
+            fill!(view(rdvals,  inds), rdvals[b] )
+        end
+
         if view(task, 1:2) == FG
             if fgcalls >= maxfgcalls
                 copyto!(task, STOP)
             else
                 fRef[] = func!(g, y, 
                     H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, 
-                    fvals, resvals, rpvals, rdvals, L, τ)
+                    fgcount, fvals, resvals, rpvals, rdvals, L, τ)
+
                 fgcalls += 1
-                linesearchcalls[end] += 1
-                    
+                if fgcalls > 1
+                    linesearchcount += 1
+                end
+
                 if verbose
                     if fgcalls == 1
                         @printf("\n%8s %10s %10s %10s", 
@@ -80,12 +92,14 @@ function calllbfgsb!(func!, g, y,
                         dist = norm(M.data .= Xnew .- Y)
                         if method==:IR
                             condition = ((τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2)
-                            verbose && @printf(" %10.2e, %10.2e", (τ*δ)^2 + 2τ*ε*L, L*((1-τ)*L - α*τ)*dist^2)
+                            verbose && @printf(" %10.2e, %10.2e",
+                                (τ*δ)^2 + 2τ*ε*L, L*((1-τ)*L - α*τ)*dist^2)
                         else # method==:IER
                             M.data .+= α.*V
                             β = norm(M)
                             condition = (β^2 + 2α*ε ≤ (σ*dist)^2)
-                            verbose && @printf(" %10.2e, %10.2e", β^2 + 2α*ε, (σ*dist)^2)
+                            verbose && @printf(" %10.2e, %10.2e",
+                                β^2 + 2α*ε, (σ*dist)^2)
                         end
                     end
 
@@ -95,23 +109,20 @@ function calllbfgsb!(func!, g, y,
                 end
             end
             
-            if fgcalls == 1 && view(task, 1:4) != STOP
-                push!(linesearchcalls, 0)
-            end
-
         elseif view(task, 1:5) == NEW_X
             verbose && @printf(" (linesearch complete)")
-            push!(linesearchcalls, 0)
+            linesearchcount = 0
             
         else
             StopBFGS = true
             if !exact && view(task, 1:4) != STOP
-                @printf("\ntask = %s\n", String(copy(task)))
+                verbose && @printf("\ntask = %s\n", String(copy(task)))
                 successful = false
             end
         end
+
     end
     verbose && @printf("\n")
     
-    return successful, linesearchcalls
+    return successful
 end

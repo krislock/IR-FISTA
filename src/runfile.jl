@@ -1,6 +1,5 @@
 include("randncm.jl")
 include("ProjPSD.jl")
-include("helperfcns.jl")
 include("calllbfgsb.jl")
 include("ncm.jl")
 

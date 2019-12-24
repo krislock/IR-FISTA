@@ -109,11 +109,11 @@ end
 
 function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, storage::NCMstorage; 
         method=:IAPG, 
+        exact=false,
         τ=1.0,
         α=0.0,
         σ=1.0,
         tol=1e-2,
-        exact=false,        
         kmax=4000, 
         f_calls_limit=8000, 
         verbose=false,
@@ -167,7 +167,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         
     # Check for valid input
     method in [:IAPG, :IR, :IER] || error("method must be :IAPG, :IR, or :IER")
-    println("$method method")
+    verbose && println("$method method")
 
     issymmetric(U) || error("U must be symmetric")
     issymmetric(H) || error("H must be symmetric")
@@ -177,7 +177,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
     n = size(U, 1)
     n==storage.n || error("n != storage.n")
         
-    H2.data .= H.*H
+    H2.data .= H.^2
     
     # Lipschitz constant of ∇f
     L = norm(H2)
@@ -204,7 +204,9 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
     # Evaluates dual objective function and its gradient
     function dualobj!(gg, y, 
             H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, 
-            fvals, resvals, rpvals, rdvals, L, τ)
+            fgcount, fvals, resvals, rpvals, rdvals, L, τ)
+
+        fgcount[1] += 1
 
         τdL = τ/L
         Ldτ = L/τ
@@ -255,7 +257,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
 
         # Compute and store the objective function
         #M.data .= H.*(Xnew .- U)
-        push!(fvals, 0.5*dot(M,M))
+        fvals[fgcount[1]] = 0.5*dot(M,M)
 
         # Compute and store the optim. cond. residual
         @inbounds for j=1:n
@@ -264,12 +266,10 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
                 M.data[i,j] = H[i,j]*M[i,j] + Γ[i,j]
             end
         end
-        rp = norm(d)/(1 + √n)
+        rpvals[fgcount[1]] = norm(d)/(1 + √n)
         #M.data .= H2.*(Xnew .- U) .+ Γ
-        rd = norm(M)
-        push!(rpvals, rp)
-        push!(rdvals, rd)
-        push!(resvals, max(rp,rd))
+        rdvals[fgcount[1]] = norm(M)
+        resvals[fgcount[1]] = max(rpvals[fgcount[1]],rdvals[fgcount[1]])
 
         # Compute the gradient of the dual function
         @inbounds for j=1:n
@@ -285,15 +285,17 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
     gtol = NaN
     rp = rd = Inf
     innersuccess = true
-    fvals   = Float64[]
-    resvals = Float64[]
-    rpvals  = Float64[]
-    rdvals  = Float64[]
+
+    fgcount = [0]
+    fvals   = Vector{Float64}(undef, f_calls_limit)
+    resvals = Vector{Float64}(undef, f_calls_limit)
+    rpvals  = Vector{Float64}(undef, f_calls_limit)
+    rdvals  = Vector{Float64}(undef, f_calls_limit)
     
     while ( #innersuccess && 
             max(rp, rd) > tol && 
             k < kmax && 
-            length(fvals) < f_calls_limit )
+            fgcount[1] < f_calls_limit )
         
         k += 1
         
@@ -313,7 +315,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         fill!(isave, 0)
         fill!(dsave, 0.0)
             
-        maxfgcalls = f_calls_limit - length(fvals)
+        maxfgcalls = f_calls_limit - fgcount[1]
 
         if method==:IAPG
             gtol = (1 + √n)*min(1/tnew^3.1, 0.2*rd)
@@ -324,25 +326,24 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         end
         
         # Solve the subproblem
-        innersuccess, linesearchcalls = calllbfgsb!(dualobj!, g, y, 
-            H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, fvals, resvals, rpvals, rdvals, L, τ, α, σ,
+        innersuccess = calllbfgsb!(dualobj!, g, y,
+            H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V,
+            fgcount, fvals, resvals, rpvals, rdvals, L, τ, α, σ,
             n, memlim, wa, iwa, nbd, lower, upper, task, csave, lsave, isave, dsave,
             method=method,
             maxfgcalls=maxfgcalls,
             gtol=gtol,
             exact=exact,            
             verbose=lbfgsbverbose,
+            cleanvals=cleanvals,
         )
-        innersuccess || println("Failed to solve subproblem.")
-        fgcalls = sum(linesearchcalls)
-
-        if cleanvals
-            cleanvals!(fvals, linesearchcalls)
-            cleanvals!(resvals, linesearchcalls)
+        if !innersuccess
+            verbose && println("Failed to solve subproblem.")
         end
+        fgcalls = fgcount[1] - (f_calls_limit - maxfgcalls)
 
-        rp = rpvals[end]
-        rd = rdvals[end]
+        rp = rpvals[fgcount[1]]
+        rd = rdvals[fgcount[1]]
         ε = dot(Xnew, Λ)
         δ = norm(V)
         dist = norm(M.data .= Xnew .- Y)
@@ -352,15 +353,14 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
             @printf("%4s %8s %10s %10s %14s %10s %10s %10s %10s %10s\n", 
                 "k", "fgcalls", "||g||", "gtol", "f(X)", "rp", "rd", "<X,Λ>", "||V||", "||X-Y||")
             @printf("%4d %8d %10.2e %10.2e %14.6e %10.2e %10.2e %10.2e %10.2e %10.2e\n", 
-                k, fgcalls, norm(g), gtol, fvals[end], rp, rd, ε, δ, dist)
+                k, fgcalls, norm(g), gtol, fvals[fgcount[1]], rp, rd, ε, δ, dist)
         end
         
         if method==:IR
             ε = max(0.0, ε)
             condition = ((τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2)
-            if !condition && (length(fvals) < f_calls_limit)
-                println("WARNING: (τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2 fails")
-                #@show (τ*δ)^2 + 2τ*ε*L, L*((1-τ)*L - α*τ)*dist^2
+            if !condition && (fgcount[1] < f_calls_limit)
+                verbose && println("WARNING: (τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2 fails")
             end
         end
         
@@ -369,9 +369,8 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
             M.data .+= α.*V
             β = norm(M)
             condition = (β^2 + 2α*ε ≤ (σ*dist)^2)
-            if !condition && (length(fvals) < f_calls_limit)
-                println("WARNING: β^2 + 2α*ε ≤ (σ*dist)^2 fails")
-                #@show β^2 + 2α*ε, (σ*dist)^2
+            if !condition && (fgcount[1] < f_calls_limit)
+                verbose && println("WARNING: β^2 + 2α*ε ≤ (σ*dist)^2 fails")
             end
         end
 
@@ -394,10 +393,10 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
     end
     
     if max(rp, rd) > tol
-        println("Failed to converge after $(length(fvals)) function evaluations.")
+        verbose && println("Failed to converge after $(fgcount[1]) function evaluations.")
     else
-        println("Converged after $(length(fvals)) function evaluations.")
+        verbose && println("Converged after $(fgcount[1]) function evaluations.")
     end
     
-    return NCMresults(Xnew, y, Λ, fvals, resvals)
+    return NCMresults(Xnew, y, Λ, fvals[1:fgcount[1]], resvals[1:fgcount[1]])
 end
