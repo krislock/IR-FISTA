@@ -1,14 +1,23 @@
 using Printf, LBFGSB
 
 const START = b"START"
-const FG = b"FG"
-const STOP = b"STOP"
+const FG    = b"FG"
+const STOP  = b"STOP"
 const NEW_X = b"NEW_X"
+
+const STOP2  = b"ST"
+const NEW_X2 = b"NE"
+
+function copyval!(x, copytoinds, copyfromind)
+    for i = copytoinds
+        @inbounds x[i] = x[copyfromind]
+    end
+end
 
 function calllbfgsb!(func!, g, y, 
         H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, 
         fgcount, fvals, resvals, rpvals, rdvals, L, τ, α, σ,
-        n, memlim, wa, iwa, nbd, lower, upper, task, csave, lsave, isave, dsave;
+        n, memlim, wa, iwa, nbd, lower, upper, task, task2, csave, lsave, isave, dsave;
         method=:IAPG,
         maxfgcalls=100,
         gtol=1e-2,
@@ -54,14 +63,14 @@ function calllbfgsb!(func!, g, y,
 
         if cleanvals && linesearchcount > 1
             a, b = fgcount[1]-linesearchcount+1, fgcount[1]
-            inds = a:b-1
-            fill!(view(fvals,   inds), fvals[b]  )
-            fill!(view(resvals, inds), resvals[b])
-            fill!(view(rpvals,  inds), rpvals[b] )
-            fill!(view(rdvals,  inds), rdvals[b] )
+            copytoinds = a:b-1
+            copyval!(fvals,   copytoinds, b)
+            copyval!(resvals, copytoinds, b)
+            copyval!(rpvals,  copytoinds, b)
+            copyval!(rdvals,  copytoinds, b)
         end
 
-        if view(task, 1:2) == FG
+        if task2 == FG
             if fgcalls >= maxfgcalls
                 copyto!(task, STOP)
             else
@@ -109,13 +118,13 @@ function calllbfgsb!(func!, g, y,
                 end
             end
             
-        elseif view(task, 1:5) == NEW_X
+        elseif task2 == NEW_X2
             verbose && @printf(" (linesearch complete)")
             linesearchcount = 0
             
         else
             StopBFGS = true
-            if !exact && view(task, 1:4) != STOP
+            if !exact && task2 != STOP2
                 verbose && @printf("\ntask = %s\n", String(copy(task)))
                 successful = false
             end

@@ -54,6 +54,7 @@ struct NCMstorage
     lower::Vector{Float64}
     upper::Vector{Float64}
     task::Vector{UInt8}
+    task2::SubArray{UInt8,1,Vector{UInt8},Tuple{UnitRange{Int64}},true}
     csave::Vector{UInt8}
     lsave::Vector{Int32}
     isave::Vector{Int32}
@@ -87,13 +88,14 @@ struct NCMstorage
         upper = zeros(Cdouble, nmax)    # the upper bounds
 
         task  = fill(Cuchar(' '), 60)   # fortran's blank padding
+        task2 = view(task, 1:2)
         csave = fill(Cuchar(' '), 60)   # fortran's blank padding
         lsave = zeros(Cint, 4)
         isave = zeros(Cint, 44)
         dsave = zeros(Cdouble, 29)
 
         new(n, memlim, y, g, d, M, H2, Y, ∇fY, Λ, Γ, V, X, Xold, Xnew, 
-            wa, iwa, nbd, lower, upper, task, csave, lsave, isave, dsave)
+            wa, iwa, nbd, lower, upper, task, task2, csave, lsave, isave, dsave)
     end
 end
 
@@ -160,6 +162,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
     lower = storage.lower
     upper = storage.upper
     task = storage.task
+    task2 = storage.task2
     csave = storage.csave
     lsave = storage.lsave
     isave = storage.isave
@@ -276,8 +279,8 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
             gg[j] = 1.0 - X[j,j]
         end
 
-        w = view(myproj.w, 1:myproj.m[])
-        return sum(y) + 0.5*Ldτ*dot(w,w)
+        w, inds = myproj.w, 1:myproj.m[]
+        return sum(y) + 0.5*Ldτ*dot(w,inds,w,inds)
     end
     
     k = 0
@@ -329,7 +332,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         innersuccess = calllbfgsb!(dualobj!, g, y,
             H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V,
             fgcount, fvals, resvals, rpvals, rdvals, L, τ, α, σ,
-            n, memlim, wa, iwa, nbd, lower, upper, task, csave, lsave, isave, dsave,
+            n, memlim, wa, iwa, nbd, lower, upper, task, task2, csave, lsave, isave, dsave,
             method=method,
             maxfgcalls=maxfgcalls,
             gtol=gtol,
