@@ -29,7 +29,7 @@ end
 
 function randncm(n; method=:onion, seed=0, γ=0.0, p=0.5)
     rng = Random.seed!(seed)
-        
+
     # Random target matrix
     if method == :onion
         U = onion(n)
@@ -41,14 +41,12 @@ function randncm(n; method=:onion, seed=0, γ=0.0, p=0.5)
     E = Symmetric(triu(randn(n,n),1))
     U.data .= (1-γ).*U .+ γ.*E
     U = Symmetric(triu(U,1) + I)
-    
+
     # Random sparse H
     H = [rand()<p ? 1.0 : 0.0 for i=1:n, j=1:n]
     H = Symmetric(triu(H,1))
-    
+
     Random.seed!(rng)
-    
+
     return U, H
 end
-
-U, H = randncm(2)
