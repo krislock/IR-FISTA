@@ -120,13 +120,25 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         f_calls_limit=8000, 
         verbose=false,
         lbfgsbverbose=false,
+        iprint=-1,
         cleanvals=true,
     ) where T
-    
+
     # Loss function and gradient
     #f(X) = 0.5*norm(H.*(X .- U))^2
     #∇f(X) = Symmetric(H2.*(X .- U))
-    
+
+    # Check for valid input
+    n = size(U, 1)
+    n==storage.n || error("n != storage.n")
+    size(U)==size(H) || error("U and H must be the same size")
+    issymmetric(U) || error("U must be symmetric")
+    issymmetric(H) || error("H must be symmetric")
+    any(hij != 0.0 for hij in H) || error("H must be nonzero")
+
+    method in [:IAPG, :IR, :IER] || error("method must be :IAPG, :IR, or :IER")
+    verbose && println("$method method")
+
     y = storage.y
     g = storage.g
     d = storage.d
@@ -140,7 +152,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
     X = storage.X
     Xold = storage.Xold
     Xnew = storage.Xnew
-    
+
     fill!(y, 0)
     fill!(g, 0)
     fill!(d, 0)
@@ -154,7 +166,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
     fill!(X, 0)
     fill!(Xold, 0)
     fill!(Xnew, 0)
-    
+
     memlim = storage.memlim
     wa = storage.wa
     iwa = storage.iwa
@@ -167,35 +179,30 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
     lsave = storage.lsave
     isave = storage.isave
     dsave = storage.dsave
-        
-    # Check for valid input
-    method in [:IAPG, :IR, :IER] || error("method must be :IAPG, :IR, or :IER")
-    verbose && println("$method method")
 
-    issymmetric(U) || error("U must be symmetric")
-    issymmetric(H) || error("H must be symmetric")
-    size(U)==size(H) || error("U and H must be the same size")
-    any(hij != 0.0 for hij in H) || error("H must be nonzero")
-    
-    n = size(U, 1)
-    n==storage.n || error("n != storage.n")
-        
+    nRef = Ref{Cint}(n)
+    mRef = Ref{Cint}(memlim)
+    iprint = Ref{Cint}(iprint)
+    fRef = Ref{Cdouble}(0.0)
+    factr = Ref{Cdouble}(0.0)
+    pgtol = Ref{Cdouble}(0.0)
+
     H2.data .= H.^2
-    
+
     # Lipschitz constant of ∇f
     L = norm(H2)
-    
+
     if method==:IAPG
         τ==1 || error("IAPG method requires τ = 1")
         t0 = 1.0
     end
-    
+
     if method==:IR
         0 < τ ≤ 1 || error("IR method requires 0 < τ ≤ 1")
         0 ≤ α ≤ (1 - τ)*(L/τ) || error("IR method requires 0 ≤ α ≤ $((1 - τ)*(L/τ))")
         t0 = 1.0
     end
-    
+
     if method==:IER
         τ==1 || error("IER method requires τ = 1")
         α > 1/L || error("IER method requires α > $(1/L)")
@@ -203,7 +210,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         λ = α/(1 + α*L)
         t0 = 0.0
     end
-    
+
     # Evaluates dual objective function and its gradient
     function dualobj!(gg, y, 
             H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, 
@@ -282,7 +289,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         w, inds = myproj.w, 1:myproj.m[]
         return sum(y) + 0.5*Ldτ*dot(w,inds,w,inds)
     end
-    
+
     k = 0
     t = t0
     gtol = NaN
@@ -294,21 +301,21 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
     resvals = Vector{Float64}(undef, f_calls_limit)
     rpvals  = Vector{Float64}(undef, f_calls_limit)
     rdvals  = Vector{Float64}(undef, f_calls_limit)
-    
+
     while ( #innersuccess && 
             max(rp, rd) > tol && 
             k < kmax && 
             fgcount[1] < f_calls_limit )
-        
+
         k += 1
-        
+
         if method==:IER
             tnew = t + (λ + √(λ^2 + 4λ*t))/2
             Y.data .= (t/tnew).*Xnew .+ ((tnew - t)/tnew).*Xold
         else
             tnew = (1 + √(1 + 4t^2))/2
         end
-        
+
         # Reset L-BFGS-B arrays
         fill!(wa, 0.0)
         fill!(iwa, 0)
@@ -317,7 +324,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         fill!(lsave, 0)
         fill!(isave, 0)
         fill!(dsave, 0.0)
-            
+
         maxfgcalls = f_calls_limit - fgcount[1]
 
         if method==:IAPG
@@ -327,12 +334,13 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         if exact
             gtol = 0.0
         end
-        
+
         # Solve the subproblem
         innersuccess = calllbfgsb!(dualobj!, g, y,
             H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V,
             fgcount, fvals, resvals, rpvals, rdvals, L, τ, α, σ,
             n, memlim, wa, iwa, nbd, lower, upper, task, task2, csave, lsave, isave, dsave,
+            nRef, mRef, iprint, fRef, factr, pgtol;
             method=method,
             maxfgcalls=maxfgcalls,
             gtol=gtol,
@@ -358,7 +366,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
             @printf("%4d %8d %10.2e %10.2e %14.6e %10.2e %10.2e %10.2e %10.2e %10.2e\n", 
                 k, fgcalls, norm(g), gtol, fvals[fgcount[1]], rp, rd, ε, δ, dist)
         end
-        
+
         if method==:IR
             ε = max(0.0, ε)
             condition = ((τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2)
@@ -366,7 +374,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
                 verbose && println("WARNING: (τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2 fails")
             end
         end
-        
+
         if method==:IER
             ε = max(0.0, ε)
             M.data .+= α.*V
@@ -382,24 +390,27 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
             Y.data .= Xnew .+ ((t - 1)/tnew).*(Xnew .- Xold)
             Xold .= Xnew
         end
-        
+
         if method==:IR
             Y.data .= Xnew .- ((t/tnew)*(τ/L)).*V .+ ((t - 1)/tnew).*(Xnew .- Xold)
             Xold .= Xnew
         end
-        
+
         if method==:IER
             Xold.data .-= (tnew - t).*(V .+ L.*(Y .- Xnew))
         end
-        
+
         t = tnew
     end
-    
+
     if max(rp, rd) > tol
         verbose && println("Failed to converge after $(fgcount[1]) function evaluations.")
     else
         verbose && println("Converged after $(fgcount[1]) function evaluations.")
     end
-    
-    return NCMresults(Xnew, y, Λ, fvals[1:fgcount[1]], resvals[1:fgcount[1]])
+
+    resize!(fvals, fgcount[1])
+    resize!(resvals, fgcount[1])
+
+    return NCMresults(Xnew, y, Λ, fvals, resvals)
 end

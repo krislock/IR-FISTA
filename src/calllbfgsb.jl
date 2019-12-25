@@ -17,37 +17,19 @@ end
 function calllbfgsb!(func!, g, y, 
         H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, 
         fgcount, fvals, resvals, rpvals, rdvals, L, τ, α, σ,
-        n, memlim, wa, iwa, nbd, lower, upper, task, task2, csave, lsave, isave, dsave;
+        n, memlim, wa, iwa, nbd, lower, upper, task, task2, csave, lsave, isave, dsave,
+        nRef, mRef, iprint, fRef, factr, pgtol;
         method=:IAPG,
         maxfgcalls=100,
         gtol=1e-2,
         exact=false,
-        iprint=-1,
         verbose=false,
         cleanvals=true,
     )
 
-    nRef = Ref{Cint}(n)
-    mRef = Ref{Cint}(memlim)
-
-    iprint = Ref{Cint}(iprint)    # print output at every iteration
-
-    # "f is a DOUBLE PRECISION variable.
-    # If the routine setulb returns with task(1:2)= 'FG', then f must be
-    # set by the user to contain the value of the function at the point x."
-    # "g is a DOUBLE PRECISION array of length n.
-    # If the routine setulb returns with taskb(1:2)= 'FG', then g must be
-    # set by the user to contain the components of the gradient at the
-    # point x."
-    fRef = Ref{Cdouble}(0.0)
-    
-    # specify the tolerances in the stopping criteria
-    factr = Ref{Cdouble}(0.0)
-    pgtol = Ref{Cdouble}(0.0)
-
     fgcalls = 0
     linesearchcount = 0
-    
+
     StopBFGS = false
     successful = true
 
@@ -91,7 +73,7 @@ function calllbfgsb!(func!, g, y,
                     @printf("\n%8d %10.2e %10.2e %10.2e", 
                         fgcalls, fRef[], norm(g), gtol)
                 end
-                
+
                 if !exact                
                     if method==:IAPG
                         condition = (norm(g) < gtol)
@@ -117,11 +99,11 @@ function calllbfgsb!(func!, g, y,
                     end
                 end
             end
-            
+
         elseif task2 == NEW_X2
             verbose && @printf(" (linesearch complete)")
             linesearchcount = 0
-            
+
         else
             StopBFGS = true
             if !exact && task2 != STOP2
@@ -132,6 +114,6 @@ function calllbfgsb!(func!, g, y,
 
     end
     verbose && @printf("\n")
-    
+
     return successful
 end
