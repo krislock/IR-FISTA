@@ -14,8 +14,8 @@ function copyval!(x, copytoinds, copyfromind)
     end
 end
 
-function calllbfgsb!(func!, g, y, 
-        H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, 
+function calllbfgsb!(g, y, proj,
+        H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V,
         fgcount, fvals, resvals, rpvals, rdvals, L, τ, α, σ,
         n, memlim, wa, iwa, nbd, lower, upper, task, task2, csave, lsave, isave, dsave,
         nRef, mRef, iprint, fRef, factr, pgtol;
@@ -56,8 +56,8 @@ function calllbfgsb!(func!, g, y,
             if fgcalls >= maxfgcalls
                 copyto!(task, STOP)
             else
-                fRef[] = func!(g, y, 
-                    H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, 
+                fRef[] = dualobj!(g, y, proj,
+                    n, H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V,
                     fgcount, fvals, resvals, rpvals, rdvals, L, τ)
 
                 fgcalls += 1
@@ -67,14 +67,14 @@ function calllbfgsb!(func!, g, y,
 
                 if verbose
                     if fgcalls == 1
-                        @printf("\n%8s %10s %10s %10s", 
+                        @printf("\n%8s %10s %10s %10s",
                             "fgcalls", "fRef[]", "norm(g)", "gtol")
                     end
-                    @printf("\n%8d %10.2e %10.2e %10.2e", 
+                    @printf("\n%8d %10.2e %10.2e %10.2e",
                         fgcalls, fRef[], norm(g), gtol)
                 end
 
-                if !exact                
+                if !exact
                     if method==:IAPG
                         condition = (norm(g) < gtol)
                     else

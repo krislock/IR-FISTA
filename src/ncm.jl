@@ -31,23 +31,48 @@ function ncm(U, H; verbose=false)
 end
 =#
 
+const NCMmethods = [:IAPG, :IR, :IER]
+
+
+struct NCMresults
+    X::Symmetric{Float64,Array{Float64,2}}
+    y::Vector{Float64}
+    Λ::Symmetric{Float64,Array{Float64,2}}
+    fgcount::Vector{Int32}
+    fvals::Vector{Float64}
+    resvals::Vector{Float64}
+    rpvals::Vector{Float64}
+    rdvals::Vector{Float64}
+
+    function NCMresults(n, f_calls_limit)
+        X = Symmetric(zeros(n,n))
+        y = zeros(n)
+        Λ = Symmetric(zeros(n,n))
+        fgcount = Int32[0]
+        fvals   = Vector{Float64}(undef, f_calls_limit)
+        resvals = Vector{Float64}(undef, f_calls_limit)
+        rpvals  = Vector{Float64}(undef, f_calls_limit)
+        rdvals = Vector{Float64}(undef, f_calls_limit)
+
+        new(X, y, Λ, fgcount, fvals, resvals, rpvals, rdvals)
+    end
+end
+
 
 struct NCMstorage
-    n::Int
-    memlim::Int
-    y::Vector{Float64}
+    n::Int32
+    memlim::Int32
+    f_calls_limit::Int32
     g::Vector{Float64}
     d::Vector{Float64}
     M::Symmetric{Float64,Array{Float64,2}}
     H2::Symmetric{Float64,Array{Float64,2}}
     Y::Symmetric{Float64,Array{Float64,2}}
     ∇fY::Symmetric{Float64,Array{Float64,2}}
-    Λ::Symmetric{Float64,Array{Float64,2}}
     Γ::Symmetric{Float64,Array{Float64,2}}
     V::Symmetric{Float64,Array{Float64,2}}
     X::Symmetric{Float64,Array{Float64,2}}
     Xold::Symmetric{Float64,Array{Float64,2}}
-    Xnew::Symmetric{Float64,Array{Float64,2}}
     wa::Vector{Float64}
     iwa::Vector{Int32}
     nbd::Vector{Int32}
@@ -59,9 +84,15 @@ struct NCMstorage
     lsave::Vector{Int32}
     isave::Vector{Int32}
     dsave::Vector{Float64}
+    nRef::Base.RefValue{Int32}
+    mRef::Base.RefValue{Int32}
+    iprint::Base.RefValue{Int32}
+    fRef::Base.RefValue{Float64}
+    factr::Base.RefValue{Float64}
+    pgtol::Base.RefValue{Float64}
+    res::NCMresults
 
-    function NCMstorage(n, memlim)
-        y = zeros(n)
+    function NCMstorage(n; memlim=10, f_calls_limit=2000)
         g = zeros(n)
         d = zeros(n)
 
@@ -69,12 +100,10 @@ struct NCMstorage
         H2 = copy(M)
         Y = copy(M)
         ∇fY = copy(M)
-        Λ = copy(M)
         Γ = copy(M)
         V = copy(M)
         X = copy(M)
         Xold = copy(M)
-        Xnew = copy(M)
 
         nmax = n
         mmax = memlim
@@ -94,33 +123,118 @@ struct NCMstorage
         isave = zeros(Cint, 44)
         dsave = zeros(Cdouble, 29)
 
-        new(n, memlim, y, g, d, M, H2, Y, ∇fY, Λ, Γ, V, X, Xold, Xnew, 
-            wa, iwa, nbd, lower, upper, task, task2, csave, lsave, isave, dsave)
+        nRef = Ref{Cint}(n)
+        mRef = Ref{Cint}(memlim)
+        iprint = Ref{Cint}(-1)
+        fRef = Ref{Cdouble}(0.0)
+        factr = Ref{Cdouble}(0.0)
+        pgtol = Ref{Cdouble}(0.0)
+
+        res = NCMresults(n, f_calls_limit)
+
+        new(n, memlim, f_calls_limit,
+            g, d, M, H2, Y, ∇fY, Γ, V, X, Xold,
+            wa, iwa, nbd, lower, upper, task, task2, csave, lsave, isave, dsave,
+            nRef, mRef, iprint, fRef, factr, pgtol,
+            res)
     end
 end
 
 
-struct NCMresults
-    X::Symmetric{Float64,Array{Float64,2}}
-    y::Vector{Float64}
-    Λ::Symmetric{Float64,Array{Float64,2}}
-    fvals::Vector{Float64}
-    resvals::Vector{Float64}
+
+# Evaluates dual objective function and its gradient
+function dualobj!(gg, y, proj,
+        n, H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V,
+        fgcount, fvals, resvals, rpvals, rdvals, L, τ)
+
+    fgcount[1] += 1
+
+    τdL = τ/L
+    Ldτ = L/τ
+
+    #=
+    ∇fY.data .= H2.*(Y .- U)
+    M .= ∇fY; plusdiag!(M, y)  # M = ∇f(Y) + Diag(y)
+    M.data .= Y .- τdL.*M      # M = Y - (τ/L)*(∇f(Y) + Diag(y))
+    X .= M
+    =#
+    @inbounds for j=1:n
+        for i=1:j
+            ∇fY.data[i,j] = H2[i,j]*(Y[i,j] - U[i,j])
+            M.data[i,j] = Y[i,j] - τdL*∇fY[i,j]
+            X.data[i,j] = M[i,j]
+        end
+        M.data[j,j] -= τdL*y[j]
+        X.data[j,j] = M[j,j]
+    end
+    proj(X)
+
+    # Update Λ and Γ
+    #Λ.data .= Ldτ.*(X .- M)         # Λ is psd
+    #Γ.data .= .-Λ; plusdiag!(Γ, y)  # Γ = Diag(y) - Λ
+
+    # Ensure that diag(Xnew).==1 exactly
+    @inbounds for j=1:n
+        if X[j,j] > 0.0
+            d[j] = 1.0/sqrt(X[j,j])
+        else
+            d[j] = 1.0
+        end
+    end
+    @inbounds for j=1:n
+        for i=1:j
+            Λ.data[i,j] = Ldτ*(X[i,j] - M[i,j])
+            Γ.data[i,j] = -Λ[i,j]
+            Xnew.data[i,j] = d[i]*d[j]*X[i,j]
+            V.data[i,j] = ∇fY[i,j] + Ldτ*(Xnew[i,j] - Y[i,j]) + Γ[i,j]
+            M.data[i,j] = H[i,j]*(Xnew[i,j] - U[i,j])
+        end
+        Γ.data[j,j] += y[j]
+        V.data[j,j] += y[j]
+    end
+
+    # Update V
+    # V.data .= ∇fY .+ Ldτ.*(Xnew .- Y) .+ Γ
+
+    # Compute and store the objective function
+    #M.data .= H.*(Xnew .- U)
+    fvals[fgcount[1]] = 0.5*dot(M,M)
+
+    # Compute and store the optim. cond. residual
+    @inbounds for j=1:n
+        d[j] = 1.0 - Xnew[j,j]
+        for i=1:j
+            M.data[i,j] = H[i,j]*M[i,j] + Γ[i,j]
+        end
+    end
+    rpvals[fgcount[1]] = norm(d)/(1 + √n)
+    #M.data .= H2.*(Xnew .- U) .+ Γ
+    rdvals[fgcount[1]] = norm(M)
+    resvals[fgcount[1]] = max(rpvals[fgcount[1]],rdvals[fgcount[1]])
+
+    # Compute the gradient of the dual function
+    @inbounds for j=1:n
+        gg[j] = 1.0 - X[j,j]
+    end
+
+    w, inds = proj.w, 1:proj.m[]
+    return sum(y) + 0.5*Ldτ*dot(w,inds,w,inds)
 end
 
 
-function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, storage::NCMstorage; 
-        method=:IAPG, 
+function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
+        proj::ProjPSD, storage::NCMstorage;
+        method=:IAPG,
         exact=false,
         τ=1.0,
         α=0.0,
         σ=1.0,
         tol=1e-2,
-        kmax=4000, 
-        f_calls_limit=8000, 
+        kmax=2000,
+        f_calls_limit=2000,
         verbose=false,
-        lbfgsbverbose=false,
-        iprint=-1,
+        innerverbose=false,
+        lbfgsbprintlevel=-1,
         cleanvals=true,
     ) where T
 
@@ -130,42 +244,27 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
 
     # Check for valid input
     n = size(U, 1)
-    n==storage.n || error("n != storage.n")
+    n==storage.n || error("require n == storage.n")
+    f_calls_limit ≤ storage.f_calls_limit ||
+        error("require f_calls_limit ≤ storage.f_calls_limit")
     size(U)==size(H) || error("U and H must be the same size")
     issymmetric(U) || error("U must be symmetric")
     issymmetric(H) || error("H must be symmetric")
-    any(hij != 0.0 for hij in H) || error("H must be nonzero")
+    !iszero(H) || error("H must be nonzero")
 
-    method in [:IAPG, :IR, :IER] || error("method must be :IAPG, :IR, or :IER")
+    method in NCMmethods || error("method must be in $NCMmethods")
     verbose && println("$method method")
 
-    y = storage.y
     g = storage.g
     d = storage.d
     M = storage.M
     H2 = storage.H2
     Y = storage.Y
     ∇fY = storage.∇fY
-    Λ = storage.Λ
     Γ = storage.Γ
     V = storage.V
     X = storage.X
     Xold = storage.Xold
-    Xnew = storage.Xnew
-
-    fill!(y, 0)
-    fill!(g, 0)
-    fill!(d, 0)
-    fill!(M, 0)
-    fill!(H2, 0)
-    fill!(Y, 0)
-    fill!(∇fY, 0)
-    fill!(Λ, 0)
-    fill!(Γ, 0)
-    fill!(V, 0)
-    fill!(X, 0)
-    fill!(Xold, 0)
-    fill!(Xnew, 0)
 
     memlim = storage.memlim
     wa = storage.wa
@@ -180,12 +279,38 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
     isave = storage.isave
     dsave = storage.dsave
 
-    nRef = Ref{Cint}(n)
-    mRef = Ref{Cint}(memlim)
-    iprint = Ref{Cint}(iprint)
-    fRef = Ref{Cdouble}(0.0)
-    factr = Ref{Cdouble}(0.0)
-    pgtol = Ref{Cdouble}(0.0)
+    nRef = storage.nRef
+    mRef = storage.mRef
+    iprint = storage.iprint
+    fRef = storage.fRef
+    factr = storage.factr
+    pgtol = storage.pgtol
+
+    iprint[] = lbfgsbprintlevel
+
+    res = storage.res
+    Xnew = res.X
+    y = res.y
+    Λ = res.Λ
+    fgcount = res.fgcount
+    fvals   = res.fvals
+    resvals = res.resvals
+    rpvals  = res.rpvals
+    rdvals  = res.rdvals
+
+    fill!(y, 0)
+    fill!(g, 0)
+    fill!(d, 0)
+    fill!(M, 0)
+    fill!(H2, 0)
+    fill!(Y, 0)
+    fill!(∇fY, 0)
+    fill!(Λ, 0)
+    fill!(Γ, 0)
+    fill!(V, 0)
+    fill!(X, 0)
+    fill!(Xold, 0)
+    fill!(Xnew, 0)
 
     H2.data .= H.^2
 
@@ -211,100 +336,16 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         t0 = 0.0
     end
 
-    # Evaluates dual objective function and its gradient
-    function dualobj!(gg, y, 
-            H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, 
-            fgcount, fvals, resvals, rpvals, rdvals, L, τ)
-
-        fgcount[1] += 1
-
-        τdL = τ/L
-        Ldτ = L/τ
-
-        #=
-        ∇fY.data .= H2.*(Y .- U)
-        M .= ∇fY; plusdiag!(M, y)  # M = ∇f(Y) + Diag(y)
-        M.data .= Y .- τdL.*M      # M = Y - (τ/L)*(∇f(Y) + Diag(y))
-        X .= M
-        =#
-        @inbounds for j=1:n
-            for i=1:j
-                ∇fY.data[i,j] = H2[i,j]*(Y[i,j] - U[i,j])
-                M.data[i,j] = Y[i,j] - τdL*∇fY[i,j]
-                X.data[i,j] = M[i,j]
-            end
-            M.data[j,j] -= τdL*y[j]
-            X.data[j,j] = M[j,j]
-        end
-        myproj(X)
-
-        # Update Λ and Γ
-        #Λ.data .= Ldτ.*(X .- M)         # Λ is psd
-        #Γ.data .= .-Λ; plusdiag!(Γ, y)  # Γ = Diag(y) - Λ
-
-        # Ensure that diag(Xnew).==1 exactly
-        @inbounds for j=1:n
-            if X[j,j] > 0.0
-                d[j] = 1.0/sqrt(X[j,j])
-            else
-                d[j] = 1.0
-            end
-        end
-        @inbounds for j=1:n
-            for i=1:j
-                Λ.data[i,j] = Ldτ*(X[i,j] - M[i,j])
-                Γ.data[i,j] = -Λ[i,j]
-                Xnew.data[i,j] = d[i]*d[j]*X[i,j]
-                V.data[i,j] = ∇fY[i,j] + Ldτ*(Xnew[i,j] - Y[i,j]) + Γ[i,j]
-                M.data[i,j] = H[i,j]*(Xnew[i,j] - U[i,j])
-            end
-            Γ.data[j,j] += y[j]
-            V.data[j,j] += y[j]
-        end
-
-        # Update V
-        # V.data .= ∇fY .+ Ldτ.*(Xnew .- Y) .+ Γ
-
-        # Compute and store the objective function
-        #M.data .= H.*(Xnew .- U)
-        fvals[fgcount[1]] = 0.5*dot(M,M)
-
-        # Compute and store the optim. cond. residual
-        @inbounds for j=1:n
-            d[j] = 1.0 - Xnew[j,j]
-            for i=1:j
-                M.data[i,j] = H[i,j]*M[i,j] + Γ[i,j]
-            end
-        end
-        rpvals[fgcount[1]] = norm(d)/(1 + √n)
-        #M.data .= H2.*(Xnew .- U) .+ Γ
-        rdvals[fgcount[1]] = norm(M)
-        resvals[fgcount[1]] = max(rpvals[fgcount[1]],rdvals[fgcount[1]])
-
-        # Compute the gradient of the dual function
-        @inbounds for j=1:n
-            gg[j] = 1.0 - X[j,j]
-        end
-
-        w, inds = myproj.w, 1:myproj.m[]
-        return sum(y) + 0.5*Ldτ*dot(w,inds,w,inds)
-    end
-
     k = 0
     t = t0
     gtol = NaN
     rp = rd = Inf
+    fgcount[1] = 0
     innersuccess = true
 
-    fgcount = [0]
-    fvals   = Vector{Float64}(undef, f_calls_limit)
-    resvals = Vector{Float64}(undef, f_calls_limit)
-    rpvals  = Vector{Float64}(undef, f_calls_limit)
-    rdvals  = Vector{Float64}(undef, f_calls_limit)
-
-    while ( #innersuccess && 
-            max(rp, rd) > tol && 
-            k < kmax && 
+    while ( innersuccess &&
+            max(rp, rd) > tol &&
+            k < kmax &&
             fgcount[1] < f_calls_limit )
 
         k += 1
@@ -336,20 +377,20 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         end
 
         # Solve the subproblem
-        innersuccess = calllbfgsb!(dualobj!, g, y,
-            H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V,
+        innersuccess = calllbfgsb!(g, y, proj,
+            H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V,
             fgcount, fvals, resvals, rpvals, rdvals, L, τ, α, σ,
             n, memlim, wa, iwa, nbd, lower, upper, task, task2, csave, lsave, isave, dsave,
             nRef, mRef, iprint, fRef, factr, pgtol;
             method=method,
             maxfgcalls=maxfgcalls,
             gtol=gtol,
-            exact=exact,            
-            verbose=lbfgsbverbose,
+            exact=exact,
+            verbose=innerverbose,
             cleanvals=cleanvals,
         )
         if !innersuccess
-            verbose && println("Failed to solve subproblem.")
+            println("Failed to solve subproblem.")
         end
         fgcalls = fgcount[1] - (f_calls_limit - maxfgcalls)
 
@@ -361,9 +402,9 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
 
         if verbose
             mod(k, 20)==1 &&
-            @printf("%4s %8s %10s %10s %14s %10s %10s %10s %10s %10s\n", 
+            @printf("%4s %8s %10s %10s %14s %10s %10s %10s %10s %10s\n",
                 "k", "fgcalls", "||g||", "gtol", "f(X)", "rp", "rd", "<X,Λ>", "||V||", "||X-Y||")
-            @printf("%4d %8d %10.2e %10.2e %14.6e %10.2e %10.2e %10.2e %10.2e %10.2e\n", 
+            @printf("%4d %8d %10.2e %10.2e %14.6e %10.2e %10.2e %10.2e %10.2e %10.2e\n",
                 k, fgcalls, norm(g), gtol, fvals[fgcount[1]], rp, rd, ε, δ, dist)
         end
 
@@ -409,8 +450,5 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2}, myproj::ProjPSD, stor
         verbose && println("Converged after $(fgcount[1]) function evaluations.")
     end
 
-    resize!(fvals, fgcount[1])
-    resize!(resvals, fgcount[1])
-
-    return NCMresults(Xnew, y, Λ, fvals, resvals)
+    return res
 end
