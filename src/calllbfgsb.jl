@@ -19,7 +19,8 @@ function calllbfgsb!(g, y, proj,
         fgcount, fvals, resvals,
         rpRef, rdRef, εRef, δRef, βRef, distRef,
         L, τ, α, σ,
-        n, memlim, wa, iwa, nbd, lower, upper, task, task2, csave, lsave, isave, dsave,
+        n, memlim, wa, iwa, nbd, lower, upper,
+        task, task2, csave, lsave, isave, dsave,
         nRef, mRef, iprint, fRef, factr, pgtol;
         method=:IAPG,
         maxfgcalls=100,
@@ -56,7 +57,7 @@ function calllbfgsb!(g, y, proj,
             if fgcalls >= maxfgcalls
                 copyto!(task, STOP)
             else
-                fRef[] = dualobj!(g, y, proj,
+                fRef[] = dualobj!(g, y, proj, method,
                     n, H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z,
                     fgcount, fvals, resvals,
                     rpRef, rdRef, εRef, δRef, distRef, L, τ)
@@ -79,10 +80,13 @@ function calllbfgsb!(g, y, proj,
                     if method==:IAPG
                         condition = (norm(g) < gtol)
                     else
+                        εRef[]    = symdot(Xnew, Λ)
+                        distRef[] = fronorm(Z, proj.work)
                         ε = max(0.0, εRef[])
-                        δ = δRef[]
                         dist = distRef[]
                         if method==:IR
+                            δRef[] = fronorm(V, proj.work)
+                            δ = δRef[]
                             condition = ((τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2)
                         else # method==:IER
                             Z.data .+= α.*V.data

@@ -1,6 +1,3 @@
-const NCMmethods = [:IAPG, :IR, :IER]
-
-
 struct NCMresults
     X::Symmetric{Float64,Array{Float64,2}}
     y::Vector{Float64}
@@ -112,7 +109,8 @@ struct NCMstorage
 
         new(n, memlim, f_calls_limit,
             g, d, M, H2, Y, ∇fY, Γ, V, X, Xold, Z,
-            wa, iwa, nbd, lower, upper, task, task2, csave, lsave, isave, dsave,
+            wa, iwa, nbd, lower, upper,
+            task, task2, csave, lsave, isave, dsave,
             nRef, mRef, iprint, fRef, factr, pgtol,
             rpRef, rdRef, εRef, δRef, βRef, distRef, res)
     end
@@ -146,7 +144,7 @@ end
 
 
 # Evaluates dual objective function and its gradient
-function dualobj!(gg, y, proj,
+function dualobj!(gg, y, proj, method,
         n, H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z,
         fgcount, fvals, resvals,
         rpRef, rdRef, εRef, δRef, distRef, L, τ)
@@ -214,10 +212,6 @@ function dualobj!(gg, y, proj,
     rdRef[] = fronorm(M, proj.work)
     resvals[fgcount[]] = max(rpRef[],rdRef[])
 
-    εRef[]    = symdot(Xnew, Λ)
-    δRef[]    = fronorm(V, proj.work)
-    distRef[] = fronorm(Z, proj.work)
-
     # Compute the gradient of the dual function
     @inbounds for j=1:n
         gg[j] = 1.0 - X.data[j,j]
@@ -258,8 +252,9 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
     issymmetric(H) || error("H must be symmetric")
     !iszero(H) || error("H must be nonzero")
 
-    method in NCMmethods || error("method must be in $NCMmethods")
-    verbose && println("$method method")
+    validmethod = (method==:IAPG || method==:IR || method==:IER)
+    validmethod || error("method must be :IAPG or :IR or :IER")
+    verbose && println("$method method, τ=$τ, α=$α, σ=$σ, tol=$tol")
 
     g = storage.g
     d = storage.d
@@ -337,7 +332,8 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
 
     if method==:IR
         0 < τ ≤ 1 || error("IR method requires 0 < τ ≤ 1")
-        0 ≤ α ≤ (1 - τ)*(L/τ) || error("IR method requires 0 ≤ α ≤ $((1 - τ)*(L/τ))")
+        0 ≤ α ≤ (1 - τ)*(L/τ) ||
+            error("IR method requires 0 ≤ α ≤ $((1 - τ)*(L/τ))")
         t0 = 1.0
     end
 
@@ -356,7 +352,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
     fgcount[] = 0
     innersuccess = true
 
-    while ( innersuccess &&
+    while ( #innersuccess &&
             max(rp, rd) > tol &&
             k < kmax &&
             fgcount[] < f_calls_limit )
@@ -395,7 +391,8 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
             fgcount, fvals, resvals,
             rpRef, rdRef, εRef, δRef, βRef, distRef,
             L, τ, α, σ,
-            n, memlim, wa, iwa, nbd, lower, upper, task, task2, csave, lsave, isave, dsave,
+            n, memlim, wa, iwa, nbd, lower, upper,
+            task, task2, csave, lsave, isave, dsave,
             nRef, mRef, iprint, fRef, factr, pgtol;
             method=method,
             maxfgcalls=maxfgcalls,
@@ -405,28 +402,26 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
             cleanvals=cleanvals,
         )
         if !innersuccess
-            println("Failed to solve subproblem.")
+            verbose && println("Failed to solve subproblem.")
         end
         fgcalls = fgcount[] - (f_calls_limit - maxfgcalls)
 
         fval = fvals[fgcount[]]
         rp   = rpRef[]
         rd   = rdRef[]
-        ε    = εRef[]
-        δ    = δRef[]
-        β    = βRef[]
-        dist = distRef[]
 
         if verbose
             mod(k, 20)==1 &&
-            @printf("%4s %8s %10s %10s %10s %10s %10s %10s %10s %10s\n",
-                "k", "fgcalls", "||g||", "gtol", "f(X)", "rp", "rd", "<X,Λ>", "||V||", "||X-Y||")
-            @printf("%4d %8d %10.2e %10.2e %10.2e %10.2e %10.2e %10.2e %10.2e %10.2e\n",
-                k, fgcalls, norm(g), gtol, fval, rp, rd, ε, δ, dist)
+            @printf("%4s %8s %10s %10s %10s %10s %10s\n",
+                "k", "fgcalls", "||g||", "gtol", "f(X)", "rp", "rd")
+            @printf("%4d %8d %10.2e %10.2e %10.2e %10.2e %10.2e\n",
+                k, fgcalls, norm(g), gtol, fval, rp, rd)
         end
 
         if method==:IR
-            ε = max(0.0, ε)
+            ε = max(0.0, εRef[])
+            δ = δRef[]
+            dist = distRef[]
             condition = ((τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2)
             if !condition && (fgcount[] < f_calls_limit)
                 verbose && println("WARNING: (τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2 fails")
@@ -434,7 +429,9 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
         end
 
         if method==:IER
-            ε = max(0.0, ε)
+            ε = max(0.0, εRef[])
+            β = βRef[]
+            dist = distRef[]
             condition = (β^2 + 2α*ε ≤ (σ*dist)^2)
             if !condition && (fgcount[] < f_calls_limit)
                 verbose && println("WARNING: β^2 + 2α*ε ≤ (σ*dist)^2 fails")
@@ -453,7 +450,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
         end
 
         if method==:IER
-            Xold.data .-= (tnew - t).*(V.data .+ L.*(Y.data .- Xnew.data))
+            Xold.data .-= (tnew - t).*V.data .+ ((tnew - t)*L).*(Y.data .- Xnew.data)
         end
 
         t = tnew
