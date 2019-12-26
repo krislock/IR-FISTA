@@ -149,7 +149,7 @@ end
 function dualobj!(gg, y, proj,
         n, H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z,
         fgcount, fvals, resvals,
-        rpRef, rdRef, εRef, δRef, βRef, distRef, L, τ)
+        rpRef, rdRef, εRef, δRef, distRef, L, τ)
 
     fgcount[] += 1
 
@@ -217,9 +217,6 @@ function dualobj!(gg, y, proj,
     εRef[]    = symdot(Xnew, Λ)
     δRef[]    = fronorm(V, proj.work)
     distRef[] = fronorm(Z, proj.work)
-
-    Z.data .+= α.*V.data
-    βRef[]    = fronorm(Z, proj.work)
 
     # Compute the gradient of the dual function
     @inbounds for j=1:n

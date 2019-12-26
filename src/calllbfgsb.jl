@@ -85,6 +85,8 @@ function calllbfgsb!(g, y, proj,
                         if method==:IR
                             condition = ((τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2)
                         else # method==:IER
+                            Z.data .+= α.*V.data
+                            βRef[] = fronorm(Z, proj.work)
                             β = βRef[]
                             condition = (β^2 + 2α*ε ≤ (σ*dist)^2)
                         end
