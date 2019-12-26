@@ -131,7 +131,7 @@ function symmetrize!(A)
    n = size(A,1)
    for j=1:n
        for i=1:j-1
-           A.data[j,i] = A.data[i,j]
+           @inbounds A.data[j,i] = A.data[i,j]
        end
    end
    return nothing
