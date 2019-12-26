@@ -15,8 +15,10 @@ function copyval!(x, copytoinds, copyfromind)
 end
 
 function calllbfgsb!(g, y, proj,
-        H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V,
-        fgcount, fvals, resvals, rpvals, rdvals, L, τ, α, σ,
+        H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z,
+        fgcount, fvals, resvals,
+        rpRef, rdRef, εRef, δRef, βRef, distRef,
+        L, τ, α, σ,
         n, memlim, wa, iwa, nbd, lower, upper, task, task2, csave, lsave, isave, dsave,
         nRef, mRef, iprint, fRef, factr, pgtol;
         method=:IAPG,
@@ -44,12 +46,10 @@ function calllbfgsb!(g, y, proj,
             iprint, csave, lsave, isave, dsave)
 
         if cleanvals && linesearchcount > 1
-            a, b = fgcount[1]-linesearchcount+1, fgcount[1]
+            a, b = fgcount[]-linesearchcount+1, fgcount[]
             copytoinds = a:b-1
             copyval!(fvals,   copytoinds, b)
             copyval!(resvals, copytoinds, b)
-            copyval!(rpvals,  copytoinds, b)
-            copyval!(rdvals,  copytoinds, b)
         end
 
         if task2 == FG
@@ -57,8 +57,9 @@ function calllbfgsb!(g, y, proj,
                 copyto!(task, STOP)
             else
                 fRef[] = dualobj!(g, y, proj,
-                    n, H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V,
-                    fgcount, fvals, resvals, rpvals, rdvals, L, τ)
+                    n, H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z,
+                    fgcount, fvals, resvals,
+                    rpRef, rdRef, εRef, δRef, distRef, L, τ)
 
                 fgcalls += 1
                 if fgcalls > 1
@@ -78,19 +79,14 @@ function calllbfgsb!(g, y, proj,
                     if method==:IAPG
                         condition = (norm(g) < gtol)
                     else
-                        ε = max(0.0, dot(Xnew, Λ))
-                        δ = norm(V)
-                        dist = norm(M.data .= Xnew .- Y)
+                        ε = max(0.0, εRef[])
+                        δ = δRef[]
+                        dist = distRef[]
                         if method==:IR
                             condition = ((τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2)
-                            verbose && @printf(" %10.2e, %10.2e",
-                                (τ*δ)^2 + 2τ*ε*L, L*((1-τ)*L - α*τ)*dist^2)
                         else # method==:IER
-                            M.data .+= α.*V
-                            β = norm(M)
+                            β = βRef[]
                             condition = (β^2 + 2α*ε ≤ (σ*dist)^2)
-                            verbose && @printf(" %10.2e, %10.2e",
-                                β^2 + 2α*ε, (σ*dist)^2)
                         end
                     end
 
@@ -117,3 +113,4 @@ function calllbfgsb!(g, y, proj,
 
     return successful
 end
+
