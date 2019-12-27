@@ -39,5 +39,5 @@ function tester(n, γ, f_calls_limit; tol=1e-2, verbose=false)
     runall(U, H, proj, storage, tol=tol, verbose=verbose)
 end
 
-tester(10, 0.1, 100)
+#tester(10, 0.1, 100)
 
