@@ -14,7 +14,7 @@ function copyval!(x, copytoinds, copyfromind)
     end
 end
 
-function calllbfgsb!(g, y, proj,
+function calllbfgsb!(g, y, proj, tol,
         H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z,
         fgcount, fvals, resvals,
         rpRef, rdRef, εRef, δRef, βRef, distRef,
@@ -67,16 +67,9 @@ function calllbfgsb!(g, y, proj,
                     linesearchcount += 1
                 end
 
-                if verbose
-                    if fgcalls == 1
-                        @printf("\n%8s %10s %10s %10s",
-                            "fgcalls", "fRef[]", "norm(g)", "gtol")
-                    end
-                    @printf("\n%8d %10.2e %10.2e %10.2e",
-                        fgcalls, fRef[], norm(g), gtol)
-                end
-
-                if !exact
+                if resvals[fgcount[]] < tol
+                    copyto!(task, STOP)
+                elseif !exact
                     if method==:IAPG
                         condition = (norm(g) < gtol)
                     else
@@ -103,7 +96,6 @@ function calllbfgsb!(g, y, proj,
             end
 
         elseif task2 == NEW_X2
-            verbose && @printf(" (linesearch complete)")
             linesearchcount = 0
 
         else
@@ -115,7 +107,6 @@ function calllbfgsb!(g, y, proj,
         end
 
     end
-    verbose && @printf("\n")
 
     return successful
 end

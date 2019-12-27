@@ -386,7 +386,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
         end
 
         # Solve the subproblem
-        innersuccess = calllbfgsb!(g, y, proj,
+        innersuccess = calllbfgsb!(g, y, proj, tol,
             H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z,
             fgcount, fvals, resvals,
             rpRef, rdRef, εRef, δRef, βRef, distRef,
@@ -402,7 +402,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
             cleanvals=cleanvals,
         )
         if !innersuccess
-            verbose && println("Failed to solve subproblem.")
+            println("Failed to solve subproblem.")
         end
         fgcalls = fgcount[] - (f_calls_limit - maxfgcalls)
 
