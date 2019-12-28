@@ -15,7 +15,7 @@ function copyval!(x, copytoinds, copyfromind)
 end
 
 function calllbfgsb!(g, y, proj, tol,
-        H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z,
+        H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z, Rd,
         fgcountRef, fvals, resvals,
         rpRef, rdRef, εRef, δRef, βRef, distRef,
         L, τ, α, σ,
@@ -58,7 +58,7 @@ function calllbfgsb!(g, y, proj, tol,
                 copyto!(task, STOP)
             else
                 fRef[] = dualobj!(g, y, proj, method,
-                    n, H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z,
+                    n, H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z, Rd,
                     fgcountRef, fvals, resvals,
                     rpRef, rdRef, εRef, δRef, distRef, L, τ)
 

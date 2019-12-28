@@ -11,7 +11,7 @@ function runtests(n, γ; f_calls_limit=2000)
     Xold = copy(ncm.Xold)
     y = copy(ncm.res.y)
 
-    tol = 1e-1
+    tol = 1e-0
     t1 = @elapsed success = ncm(U, H, method=:IAPG,
                                 useXold=true,
                                 f_calls_limit=f_calls_limit)
@@ -56,7 +56,7 @@ function makeplot(r1, r2)
                #xlim=[0, 2000],
                #ylim=ylim,
                xlabel="function evaluations",
-               ylabel=L"\max\{R_p,R_d\}",
+               ylabel=L"\max\{r_p,r_d\}",
                size=(900,600))
 
     plot!(plt, r1, label="IAPG", ls=:dot,   lc=:black)
@@ -80,7 +80,7 @@ end
         "n", "γ", "method", "fgcalls", "rp", "rd", "fval", "time")
 
 for n = [587, 692, 834, 1255, 1869]
-    for γ = [0.1, 0.05]
+    for γ = [0.01, 0.05, 0.1, 0.5]
         test(n, γ)
     end
 end
