@@ -16,7 +16,7 @@ end
 
 function calllbfgsb!(g, y, proj, tol,
         H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z,
-        fgcount, fvals, resvals,
+        fgcountRef, fvals, resvals,
         rpRef, rdRef, εRef, δRef, βRef, distRef,
         L, τ, α, σ,
         n, memlim, wa, iwa, nbd, lower, upper,
@@ -47,7 +47,7 @@ function calllbfgsb!(g, y, proj, tol,
             iprint, csave, lsave, isave, dsave)
 
         if cleanvals && linesearchcount > 1
-            a, b = fgcount[]-linesearchcount+1, fgcount[]
+            a, b = fgcountRef[]-linesearchcount+1, fgcountRef[]
             copytoinds = a:b-1
             copyval!(fvals,   copytoinds, b)
             copyval!(resvals, copytoinds, b)
@@ -59,7 +59,7 @@ function calllbfgsb!(g, y, proj, tol,
             else
                 fRef[] = dualobj!(g, y, proj, method,
                     n, H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z,
-                    fgcount, fvals, resvals,
+                    fgcountRef, fvals, resvals,
                     rpRef, rdRef, εRef, δRef, distRef, L, τ)
 
                 fgcalls += 1
@@ -67,7 +67,7 @@ function calllbfgsb!(g, y, proj, tol,
                     linesearchcount += 1
                 end
 
-                if resvals[fgcount[]] < tol
+                if resvals[fgcountRef[]] < tol
                     copyto!(task, STOP)
                 elseif !exact
                     if method==:IAPG
@@ -81,7 +81,7 @@ function calllbfgsb!(g, y, proj, tol,
                             δRef[] = fronorm(V, proj.work)
                             δ = δRef[]
                             condition = ((τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2)
-                        else # method==:IER
+                        elseif method==:IER
                             Z.data .+= α.*V.data
                             βRef[] = fronorm(Z, proj.work)
                             β = βRef[]

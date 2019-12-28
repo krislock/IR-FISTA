@@ -2,24 +2,28 @@ struct NCMresults
     X::Symmetric{Float64,Array{Float64,2}}
     y::Vector{Float64}
     Λ::Symmetric{Float64,Array{Float64,2}}
-    fgcount::Base.RefValue{Int32}
+    fgcountRef::Base.RefValue{Int32}
     fvals::Vector{Float64}
     resvals::Vector{Float64}
+    rpRef::Base.RefValue{Float64}
+    rdRef::Base.RefValue{Float64}
 
     function NCMresults(n, f_calls_limit)
         X = Symmetric(zeros(n,n))
         y = zeros(n)
         Λ = Symmetric(zeros(n,n))
-        fgcount = Ref{Int32}(0)
+        fgcountRef = Ref{Int32}(0)
         fvals   = Vector{Float64}(undef, f_calls_limit)
         resvals = Vector{Float64}(undef, f_calls_limit)
+        rpRef   = Ref{Float64}(0.0)
+        rdRef   = Ref{Float64}(0.0)
 
-        new(X, y, Λ, fgcount, fvals, resvals)
+        new(X, y, Λ, fgcountRef, fvals, resvals, rpRef, rdRef)
     end
 end
 
 
-struct NCMstorage
+struct NCM
     n::Int32
     memlim::Int32
     f_calls_limit::Int32
@@ -32,8 +36,8 @@ struct NCMstorage
     Γ::Symmetric{Float64,Array{Float64,2}}
     V::Symmetric{Float64,Array{Float64,2}}
     X::Symmetric{Float64,Array{Float64,2}}
-    Xold::Symmetric{Float64,Array{Float64,2}}
     Z::Symmetric{Float64,Array{Float64,2}}
+    Xold::Symmetric{Float64,Array{Float64,2}}
     wa::Vector{Float64}
     iwa::Vector{Int32}
     nbd::Vector{Int32}
@@ -51,32 +55,31 @@ struct NCMstorage
     fRef::Base.RefValue{Float64}
     factr::Base.RefValue{Float64}
     pgtol::Base.RefValue{Float64}
-    rpRef::Base.RefValue{Float64}
-    rdRef::Base.RefValue{Float64}
     εRef::Base.RefValue{Float64}
     δRef::Base.RefValue{Float64}
     βRef::Base.RefValue{Float64}
     distRef::Base.RefValue{Float64}
+    proj::ProjPSD
     res::NCMresults
 
-    function NCMstorage(n; memlim=10, f_calls_limit=2000)
+    function NCM(n; memlim=10, f_calls_limit=2000)
         g = zeros(n)
         d = zeros(n)
 
-        M = Symmetric(zeros(n,n))
-        H2 = copy(M)
-        Y = copy(M)
-        ∇fY = copy(M)
-        Γ = copy(M)
-        V = copy(M)
-        X = copy(M)
+        M    = Symmetric(zeros(n,n))
+        H2   = copy(M)
+        Y    = copy(M)
+        ∇fY  = copy(M)
+        Γ    = copy(M)
+        V    = copy(M)
+        X    = copy(M)
+        Z    = copy(M)
         Xold = copy(M)
-        Z = copy(M)
 
         nmax = n
         mmax = memlim
 
-        wa = zeros(Cdouble, 2mmax*nmax + 5nmax + 11mmax*mmax + 8mmax)
+        wa  = zeros(Cdouble, 2mmax*nmax + 5nmax + 11mmax*mmax + 8mmax)
         iwa = zeros(Cint, 3nmax)
 
         # provide nbd which defines the bounds on the variables:
@@ -94,25 +97,25 @@ struct NCMstorage
         nRef   = Ref{Cint}(n)
         mRef   = Ref{Cint}(memlim)
         iprint = Ref{Cint}(-1)
-        fRef  = Ref{Cdouble}(0.0)
-        factr = Ref{Cdouble}(0.0)
-        pgtol = Ref{Cdouble}(0.0)
+        fRef   = Ref{Cdouble}(0.0)
+        factr  = Ref{Cdouble}(0.0)
+        pgtol  = Ref{Cdouble}(0.0)
 
-        rpRef   = Ref{Float64}(0.0)
-        rdRef   = Ref{Float64}(0.0)
         εRef    = Ref{Float64}(0.0)
         δRef    = Ref{Float64}(0.0)
         βRef    = Ref{Float64}(0.0)
         distRef = Ref{Float64}(0.0)
 
+        proj = ProjPSD(n)
+
         res = NCMresults(n, f_calls_limit)
 
         new(n, memlim, f_calls_limit,
-            g, d, M, H2, Y, ∇fY, Γ, V, X, Xold, Z,
+            g, d, M, H2, Y, ∇fY, Γ, V, X, Z, Xold,
             wa, iwa, nbd, lower, upper,
             task, task2, csave, lsave, isave, dsave,
             nRef, mRef, iprint, fRef, factr, pgtol,
-            rpRef, rdRef, εRef, δRef, βRef, distRef, res)
+            εRef, δRef, βRef, distRef, proj, res)
     end
 end
 
@@ -146,10 +149,10 @@ end
 # Evaluates dual objective function and its gradient
 function dualobj!(gg, y, proj, method,
         n, H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z,
-        fgcount, fvals, resvals,
+        fgcountRef, fvals, resvals,
         rpRef, rdRef, εRef, δRef, distRef, L, τ)
 
-    fgcount[] += 1
+    fgcountRef[] += 1
 
     τdL = τ/L
     Ldτ = L/τ
@@ -198,7 +201,7 @@ function dualobj!(gg, y, proj, method,
 
     # Compute and store the objective function
     # M.data .= H.*(Xnew .- U)
-    fvals[fgcount[]] = 0.5*fronorm(M, proj.work)^2
+    fvals[fgcountRef[]] = 0.5*fronorm(M, proj.work)^2
 
     # Compute and store the optim. cond. residual
     @inbounds for j=1:n
@@ -210,7 +213,7 @@ function dualobj!(gg, y, proj, method,
     rpRef[] = norm(d)/(1 + √n)
     #M.data .= H2.*(Xnew .- U) .+ Γ
     rdRef[] = fronorm(M, proj.work)
-    resvals[fgcount[]] = max(rpRef[],rdRef[])
+    resvals[fgcountRef[]] = max(rpRef[],rdRef[])
 
     # Compute the gradient of the dual function
     @inbounds for j=1:n
@@ -222,21 +225,22 @@ function dualobj!(gg, y, proj, method,
 end
 
 
-function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
-        proj::ProjPSD, storage::NCMstorage;
-        method=:IAPG,
-        exact=false,
-        τ=1.0,
-        α=0.0,
-        σ=1.0,
-        tol=1e-2,
-        kmax=2000,
-        f_calls_limit=2000,
-        verbose=false,
-        innerverbose=false,
-        lbfgsbprintlevel=-1,
-        cleanvals=true,
-    ) where T
+function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
+                    H::Symmetric{Float64,Array{Float64,2}};
+                    method=:IAPG,
+                    exact=false,
+                    τ=1.0,
+                    α=0.0,
+                    σ=1.0,
+                    useXold=false,
+                    tol=1e-2,
+                    kmax=2000,
+                    f_calls_limit=2000,
+                    verbose=false,
+                    innerverbose=false,
+                    lbfgsbprintlevel=-1,
+                    cleanvals=true,
+                   )
 
     # Loss function and gradient
     #f(X) = 0.5*norm(H.*(X .- U))^2
@@ -244,81 +248,88 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
 
     # Check for valid input
     n = size(U, 1)
-    n==storage.n || error("require n == storage.n")
-    f_calls_limit ≤ storage.f_calls_limit ||
-        error("require f_calls_limit ≤ storage.f_calls_limit")
+    f_calls_limit ≤ ncm.f_calls_limit ||
+        error("require f_calls_limit ≤ ncm.f_calls_limit")
+    n==ncm.n         || error("require n == ncm.n")
     size(U)==size(H) || error("U and H must be the same size")
-    issymmetric(U) || error("U must be symmetric")
-    issymmetric(H) || error("H must be symmetric")
-    !iszero(H) || error("H must be nonzero")
+    issymmetric(U)   || error("U must be symmetric")
+    issymmetric(H)   || error("H must be symmetric")
+    !iszero(H)       || error("H must be nonzero")
 
     validmethod = (method==:IAPG || method==:IR || method==:IER)
     validmethod || error("method must be :IAPG or :IR or :IER")
     verbose && println("$method method, τ=$τ, α=$α, σ=$σ, tol=$tol")
 
-    g = storage.g
-    d = storage.d
-    M = storage.M
-    H2 = storage.H2
-    Y = storage.Y
-    ∇fY = storage.∇fY
-    Γ = storage.Γ
-    V = storage.V
-    X = storage.X
-    Xold = storage.Xold
-    Z = storage.Z
+    g    = ncm.g
+    d    = ncm.d
+    M    = ncm.M
+    H2   = ncm.H2
+    Y    = ncm.Y
+    ∇fY  = ncm.∇fY
+    Γ    = ncm.Γ
+    V    = ncm.V
+    X    = ncm.X
+    Z    = ncm.Z
+    Xold = ncm.Xold
 
-    memlim = storage.memlim
-    wa = storage.wa
-    iwa = storage.iwa
-    nbd = storage.nbd
-    lower = storage.lower
-    upper = storage.upper
-    task = storage.task
-    task2 = storage.task2
-    csave = storage.csave
-    lsave = storage.lsave
-    isave = storage.isave
-    dsave = storage.dsave
+    fill!(g,    0.0)
+    fill!(d,    0.0)
+    fill!(M,    0.0)
+    fill!(H2,   0.0)
+    fill!(Y,    0.0)
+    fill!(∇fY,  0.0)
+    fill!(Γ,    0.0)
+    fill!(V,    0.0)
+    fill!(X,    0.0)
+    fill!(Z,    0.0)
 
-    nRef = storage.nRef
-    mRef = storage.mRef
-    iprint = storage.iprint
-    fRef = storage.fRef
-    factr = storage.factr
-    pgtol = storage.pgtol
+    if !useXold 
+        fill!(Xold, 0.0)
+    end
+
+    memlim = ncm.memlim
+    wa     = ncm.wa
+    iwa    = ncm.iwa
+    nbd    = ncm.nbd
+    lower  = ncm.lower
+    upper  = ncm.upper
+    task   = ncm.task
+    task2  = ncm.task2
+    csave  = ncm.csave
+    lsave  = ncm.lsave
+    isave  = ncm.isave
+    dsave  = ncm.dsave
+
+    nRef   = ncm.nRef
+    mRef   = ncm.mRef
+    iprint = ncm.iprint
+    fRef   = ncm.fRef
+    factr  = ncm.factr
+    pgtol  = ncm.pgtol
 
     iprint[] = lbfgsbprintlevel
 
-    rpRef   = storage.rpRef
-    rdRef   = storage.rdRef
-    εRef    = storage.εRef
-    δRef    = storage.δRef
-    βRef    = storage.βRef
-    distRef = storage.distRef
+    εRef    = ncm.εRef
+    δRef    = ncm.δRef
+    βRef    = ncm.βRef
+    distRef = ncm.distRef
 
-    res = storage.res
-    Xnew = res.X
-    y = res.y
-    Λ = res.Λ
-    fgcount = res.fgcount
-    fvals   = res.fvals
-    resvals = res.resvals
+    proj = ncm.proj
+    res  = ncm.res
 
-    fill!(y, 0)
-    fill!(g, 0)
-    fill!(d, 0)
-    fill!(M, 0)
-    fill!(H2, 0)
-    fill!(Y, 0)
-    fill!(∇fY, 0)
-    fill!(Λ, 0)
-    fill!(Γ, 0)
-    fill!(V, 0)
-    fill!(X, 0)
-    fill!(Xold, 0)
-    fill!(Z, 0)
-    fill!(Xnew, 0)
+    Xnew       = res.X
+    y          = res.y
+    Λ          = res.Λ
+    fgcountRef = res.fgcountRef
+    fvals      = res.fvals
+    resvals    = res.resvals
+    rpRef      = res.rpRef
+    rdRef      = res.rdRef
+
+    fill!(Xnew, 0.0)
+    fill!(y,    0.0)
+    fill!(Λ,    0.0)
+    fgcountRef[] = 0
 
     H2.data .= H.^2
 
@@ -338,8 +349,8 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
     end
 
     if method==:IER
-        τ==1 || error("IER method requires τ = 1")
-        α > 1/L || error("IER method requires α > $(1/L)")
+        τ==1      || error("IER method requires τ = 1")
+        α > 1/L   || error("IER method requires α > $(1/L)")
         0 ≤ σ ≤ 1 || error("IER method requires 0 ≤ σ ≤ 1")
         λ = α/(1 + α*L)
         t0 = 0.0
@@ -347,15 +358,16 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
 
     k = 0
     t = t0
+    Y .= Xold
     gtol = NaN
     rp = rd = Inf
-    fgcount[] = 0
+    fgcount = fgcountRef[]
     innersuccess = true
 
-    while ( #innersuccess &&
+    while ( innersuccess &&
             max(rp, rd) > tol &&
             k < kmax &&
-            fgcount[] < f_calls_limit )
+            fgcount < f_calls_limit )
 
         k += 1
 
@@ -367,15 +379,15 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
         end
 
         # Reset L-BFGS-B arrays
-        fill!(wa, 0.0)
-        fill!(iwa, 0)
-        fill!(task, Cuchar(' '))
+        fill!(wa,    0.0)
+        fill!(iwa,   0)
+        fill!(task,  Cuchar(' '))
         fill!(csave, Cuchar(' '))
         fill!(lsave, 0)
         fill!(isave, 0)
         fill!(dsave, 0.0)
 
-        maxfgcalls = f_calls_limit - fgcount[]
+        maxfgcalls = f_calls_limit - fgcount
 
         if method==:IAPG
             gtol = (1 + √n)*min(1/tnew^3.1, 0.2*rd)
@@ -388,7 +400,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
         # Solve the subproblem
         innersuccess = calllbfgsb!(g, y, proj, tol,
             H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z,
-            fgcount, fvals, resvals,
+            fgcountRef, fvals, resvals,
             rpRef, rdRef, εRef, δRef, βRef, distRef,
             L, τ, α, σ,
             n, memlim, wa, iwa, nbd, lower, upper,
@@ -404,9 +416,10 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
         if !innersuccess
             println("Failed to solve subproblem.")
         end
-        fgcalls = fgcount[] - (f_calls_limit - maxfgcalls)
+        fgcount = fgcountRef[]
+        fgcalls = fgcount - (f_calls_limit - maxfgcalls)
 
-        fval = fvals[fgcount[]]
+        fval = fvals[fgcount]
         rp   = rpRef[]
         rd   = rdRef[]
 
@@ -423,7 +436,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
             δ = δRef[]
             dist = distRef[]
             condition = ((τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2)
-            if !condition && (fgcount[] < f_calls_limit)
+            if !condition && (fgcount < f_calls_limit)
                 verbose && println("WARNING: (τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2 fails")
             end
         end
@@ -433,7 +446,7 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
             β = βRef[]
             dist = distRef[]
             condition = (β^2 + 2α*ε ≤ (σ*dist)^2)
-            if !condition && (fgcount[] < f_calls_limit)
+            if !condition && (fgcount < f_calls_limit)
                 verbose && println("WARNING: β^2 + 2α*ε ≤ (σ*dist)^2 fails")
             end
         end
@@ -457,11 +470,13 @@ function ncm(U::AbstractArray{T,2}, H::AbstractArray{T,2},
     end
 
     if max(rp, rd) > tol
-        verbose && println("Failed to converge after $(fgcount[]) function evaluations.")
+        success = false
+        verbose && println("Failed to converge after $fgcount function evaluations.")
     else
-        verbose && println("Converged after $(fgcount[]) function evaluations.")
+        success = true
+        verbose && println("Converged after $fgcount function evaluations.")
     end
 
-    return res
+    return success
 end
 

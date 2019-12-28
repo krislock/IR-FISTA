@@ -4,26 +4,26 @@ include("runfile.jl")
 
 
 function runtests(n, γ, kmax, f_calls_limit)
-    prob = genprob(n, γ, f_calls_limit)
+    U, H, ncm = genprob(n, γ, f_calls_limit)
 
     tol = 1e-2
-    t1 = @elapsed res = ncm(prob...,
-                            method=:IAPG,
-                            kmax=kmax,
-                            tol=tol,
-                            f_calls_limit=f_calls_limit)
-    fgcount = res.fgcount[]
-    r1 = res.resvals[1:fgcount]
+    t1 = @elapsed success =
+        ncm(U, H, method=:IAPG,
+            kmax=kmax,
+            tol=tol,
+            f_calls_limit=f_calls_limit)
+    fgcount = ncm.res.fgcountRef[]
+    r1 = ncm.res.resvals[1:fgcount]
     @printf("%4d %6.2f %6d %8s %8d %10.2e %8.2f\n",
             n, γ, kmax, "IAPG", fgcount, r1[end], t1)
 
     tol = r1[end]
-    t2 = @elapsed res = ncm(prob...,
-                            method=:IR, τ=0.95,
-                            tol=tol,
-                            f_calls_limit=f_calls_limit)
-    fgcount = res.fgcount[]
-    r2 = res.resvals[1:fgcount]
+    t2 = @elapsed success =
+        ncm(U, H, method=:IR, τ=0.95,
+            tol=tol,
+            f_calls_limit=f_calls_limit)
+    fgcount = ncm.res.fgcountRef[]
+    r2 = ncm.res.resvals[1:fgcount]
     @printf("%4d %6.2f %6d %8s %8d %10.2e %8.2f\n",
             n, γ, NaN, "IR", fgcount, r2[end], t2)
 
@@ -61,7 +61,8 @@ end
         "n", "γ", "kmax", "method", "fgcalls", "resval", "time")
 
 kmax = 300
-for n = [587, 692, 834, 1255, 1869]
+#for n = [587, 692, 834, 1255, 1869]
+for n = [100]
     for γ = [0.1, 0.05]
         test(n, γ, kmax)
     end
