@@ -364,7 +364,8 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
     gtol = NaN
     rp = rd = Inf
     innersuccess = true
-    fgcount = fgcountRef[] = 0
+    fgcountRef[] = 0
+    fgcount = fgcountRef[]
 
     while ( #innersuccess &&
             max(rp, rd) > tol &&
