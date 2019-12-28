@@ -4,9 +4,9 @@ include("calllbfgsb.jl")
 include("ncm.jl")
 
 function genprob(n, γ;
-                 f_calls_limit=2000,
                  seed=0,
-                 memlim=10)
+                 memlim=10,
+                 f_calls_limit=2000)
 
     U, H = randncm(n, γ=γ, seed=seed)
     ncm = NCM(n,
@@ -24,14 +24,11 @@ function runall(U, H, ncm; tol=1e-2, printlevel=0)
     α = round(1/L, RoundUp, digits=2)
 
     @time ncm(U, H, method=:IAPG,
-        f_calls_limit=ncm.f_calls_limit,
-        tol=tol, printlevel=printlevel)
+        f_calls_limit=ncm.f_calls_limit, tol=tol, printlevel=printlevel)
     @time ncm(U, H, method=:IR, τ=0.95,
-        f_calls_limit=ncm.f_calls_limit,
-        tol=tol, printlevel=printlevel)
+        f_calls_limit=ncm.f_calls_limit, tol=tol, printlevel=printlevel)
     @time ncm(U, H, method=:IER, α=α,
-        f_calls_limit=ncm.f_calls_limit,
-        tol=tol, printlevel=printlevel)
+        f_calls_limit=ncm.f_calls_limit, tol=tol, printlevel=printlevel)
 
     return nothing
 end

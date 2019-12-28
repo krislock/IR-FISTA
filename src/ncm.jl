@@ -5,6 +5,7 @@ struct NCMresults
     fgcountRef::Base.RefValue{Int32}
     fvals::Vector{Float64}
     resvals::Vector{Float64}
+    distvals::Vector{Float64}
     rpRef::Base.RefValue{Float64}
     rdRef::Base.RefValue{Float64}
 
@@ -13,12 +14,14 @@ struct NCMresults
         y = zeros(n)
         Λ = Symmetric(zeros(n,n))
         fgcountRef = Ref{Int32}(0)
-        fvals   = Vector{Float64}(undef, f_calls_limit)
-        resvals = Vector{Float64}(undef, f_calls_limit)
-        rpRef   = Ref{Float64}(0.0)
-        rdRef   = Ref{Float64}(0.0)
+        fvals    = Vector{Float64}(undef, f_calls_limit)
+        resvals  = Vector{Float64}(undef, f_calls_limit)
+        distvals = Vector{Float64}(undef, f_calls_limit)
+        rpRef    = Ref{Float64}(0.0)
+        rdRef    = Ref{Float64}(0.0)
 
-        new(X, y, Λ, fgcountRef, fvals, resvals, rpRef, rdRef)
+        new(X, y, Λ,
+            fgcountRef, fvals, resvals, distvals, rpRef, rdRef)
     end
 end
 
@@ -57,9 +60,6 @@ struct NCM
     factr::Base.RefValue{Float64}
     pgtol::Base.RefValue{Float64}
     εRef::Base.RefValue{Float64}
-    δRef::Base.RefValue{Float64}
-    βRef::Base.RefValue{Float64}
-    distRef::Base.RefValue{Float64}
     proj::ProjPSD
     res::NCMresults
 
@@ -104,9 +104,6 @@ struct NCM
         pgtol  = Ref{Cdouble}(0.0)
 
         εRef    = Ref{Float64}(0.0)
-        δRef    = Ref{Float64}(0.0)
-        βRef    = Ref{Float64}(0.0)
-        distRef = Ref{Float64}(0.0)
 
         proj = ProjPSD(n)
 
@@ -117,7 +114,7 @@ struct NCM
             wa, iwa, nbd, lower, upper,
             task, task2, csave, lsave, isave, dsave,
             nRef, mRef, iprint, fRef, factr, pgtol,
-            εRef, δRef, βRef, distRef, proj, res)
+            εRef, proj, res)
     end
 end
 
@@ -151,16 +148,17 @@ end
 # Evaluates dual objective function and its gradient
 function dualobj!(gg, y, proj, method,
         n, H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z, Rd,
-        fgcountRef, fvals, resvals,
-        rpRef, rdRef, εRef, δRef, distRef, L, τ)
+        fgcountRef, fvals, resvals, distvals,
+        rpRef, rdRef, εRef, L, τ)
 
     fgcountRef[] += 1
+    fgcount = fgcountRef[]
 
     τdL = τ/L
     Ldτ = L/τ
 
     # ∇fY.data .= H2.*(Y .- U)
-    # M .= ∇fY; plusdiag!(M, y)  # M = ∇f(Y) + Diag(y)
+    # M .= ∇fY .+ Diagonal(y)    # M = ∇f(Y) + Diag(y)
     # M.data .= Y .- τdL.*M      # M = Y - (τ/L)*(∇f(Y) + Diag(y))
     # X .= M
     @inbounds for j=1:n
@@ -176,7 +174,7 @@ function dualobj!(gg, y, proj, method,
     proj(X)
 
     # Λ.data .= Ldτ.*(X .- M)         # Λ is psd
-    # Γ.data .= .-Λ; plusdiag!(Γ, y)  # Γ = Diag(y) - Λ
+    # Γ.data .= Diagonal(y) .- Λ
 
     # Ensure that diag(Xnew).==1 exactly
     @inbounds for j=1:n
@@ -201,20 +199,21 @@ function dualobj!(gg, y, proj, method,
         Rd.data[j,j] += y[j]
     end
 
-    # V.data .= ∇fY .+ Ldτ.*(Xnew .- Y) .+ Γ
+    # V.data  .= ∇fY .+ Ldτ.*(Xnew .- Y) .+ Γ
+    # M.data  .= H.*(Xnew .- U)
+    # Rd.data .= H2.*(Xnew .- U) .+ Γ
 
     # Compute and store the objective function
-    # M.data .= H.*(Xnew .- U)
-    fvals[fgcountRef[]] = 0.5*fronorm(M, proj.work)^2
+    fvals[fgcount] = 0.5*fronorm(M, proj.work)^2
 
     # Compute and store the optim. cond. residual
     @inbounds for j=1:n
         d[j] = 1.0 - Xnew[j,j]
     end
     rpRef[] = norm(d)/(1 + √n)
-    #M.data .= H2.*(Xnew .- U) .+ Γ
     rdRef[] = fronorm(Rd, proj.work)
-    resvals[fgcountRef[]] = max(rpRef[],rdRef[])
+    resvals[fgcount]  = max(rpRef[],rdRef[])
+    distvals[fgcount] = fronorm(Z, proj.work)
 
     # Compute the gradient of the dual function
     @inbounds for j=1:n
@@ -313,9 +312,6 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
     iprint[] = lbfgsbprintlevel
 
     εRef    = ncm.εRef
-    δRef    = ncm.δRef
-    βRef    = ncm.βRef
-    distRef = ncm.distRef
 
     proj = ncm.proj
     res  = ncm.res
@@ -326,6 +322,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
     fgcountRef = res.fgcountRef
     fvals      = res.fvals
     resvals    = res.resvals
+    distvals   = res.distvals
     rpRef      = res.rpRef
     rdRef      = res.rdRef
 
@@ -405,8 +402,8 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
         # Solve the subproblem
         innersuccess = calllbfgsb!(g, y, proj, tol,
             H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z, Rd,
-            fgcountRef, fvals, resvals,
-            rpRef, rdRef, εRef, δRef, βRef, distRef,
+            fgcountRef, fvals, resvals, distvals,
+            rpRef, rdRef, εRef,
             L, τ, α, σ,
             n, memlim, wa, iwa, nbd, lower, upper,
             task, task2, csave, lsave, isave, dsave,

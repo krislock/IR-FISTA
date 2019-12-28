@@ -16,8 +16,8 @@ end
 
 function calllbfgsb!(g, y, proj, tol,
         H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z, Rd,
-        fgcountRef, fvals, resvals,
-        rpRef, rdRef, εRef, δRef, βRef, distRef,
+        fgcountRef, fvals, resvals, distvals,
+        rpRef, rdRef, εRef,
         L, τ, α, σ,
         n, memlim, wa, iwa, nbd, lower, upper,
         task, task2, csave, lsave, isave, dsave,
@@ -59,8 +59,8 @@ function calllbfgsb!(g, y, proj, tol,
             else
                 fRef[] = dualobj!(g, y, proj, method,
                     n, H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z, Rd,
-                    fgcountRef, fvals, resvals,
-                    rpRef, rdRef, εRef, δRef, distRef, L, τ)
+                    fgcountRef, fvals, resvals, distvals,
+                    rpRef, rdRef, εRef, L, τ)
 
                 fgcalls += 1
                 if fgcalls > 1
@@ -73,18 +73,15 @@ function calllbfgsb!(g, y, proj, tol,
                     if method==:IAPG
                         condition = (norm(g) < gtol)
                     else
-                        εRef[]    = symdot(Xnew, Λ)
-                        distRef[] = fronorm(Z, proj.work)
+                        εRef[] = symdot(Xnew, Λ)
                         ε = max(0.0, εRef[])
-                        dist = distRef[]
+                        dist = distvals[fgcountRef[]]
                         if method==:IR
-                            δRef[] = fronorm(V, proj.work)
-                            δ = δRef[]
+                            δ = fronorm(V, proj.work)
                             condition = ((τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2)
                         elseif method==:IER
                             Z.data .+= α.*V.data
-                            βRef[] = fronorm(Z, proj.work)
-                            β = βRef[]
+                            β = fronorm(Z, proj.work)
                             condition = (β^2 + 2α*ε ≤ (σ*dist)^2)
                         end
                     end

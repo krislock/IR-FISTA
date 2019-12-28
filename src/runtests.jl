@@ -13,6 +13,7 @@ function runtests(n, γ; f_calls_limit=2000)
 
     tol = 1e-0
     t1 = @elapsed success = ncm(U, H, method=:IAPG,
+                                tol=tol,
                                 useXold=true,
                                 f_calls_limit=f_calls_limit)
     fgcount = ncm.res.fgcountRef[]
@@ -79,9 +80,10 @@ end
 @printf("%4s %6s %8s %8s %10s %10s %16s %8s\n",
         "n", "γ", "method", "fgcalls", "rp", "rd", "fval", "time")
 
-for n = [587, 692, 834, 1255, 1869]
+#for n = [587, 692, 834, 1255, 1869]
+for n = [100]
     for γ = [0.01, 0.05, 0.1, 0.5]
-        test(n, γ)
+        test(n, γ, f_calls_limit=4000)
     end
 end
 
