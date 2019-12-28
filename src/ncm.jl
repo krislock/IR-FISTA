@@ -283,7 +283,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
     fill!(X,    0.0)
     fill!(Z,    0.0)
 
-    if !useXold 
+    if !useXold
         fill!(Xold, 0.0)
     end
 
@@ -327,9 +327,11 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
     rdRef      = res.rdRef
 
     fill!(Xnew, 0.0)
-    fill!(y,    0.0)
     fill!(Λ,    0.0)
-    fgcountRef[] = 0
+
+    if !useXold
+        fill!(y, 0.0)
+    end
 
     H2.data .= H.^2
 
@@ -361,8 +363,8 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
     Y .= Xold
     gtol = NaN
     rp = rd = Inf
-    fgcount = fgcountRef[]
     innersuccess = true
+    fgcount = fgcountRef[] = 0
 
     while ( #innersuccess &&
             max(rp, rd) > tol &&
@@ -419,50 +421,25 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
         fgcount = fgcountRef[]
         fgcalls = fgcount - (f_calls_limit - maxfgcalls)
 
-        fval = fvals[fgcount]
-        rp   = rpRef[]
-        rd   = rdRef[]
+        rp = rpRef[]
+        rd = rdRef[]
 
         if printlevel≥2
             mod(k, 20)==1 &&
             @printf("%4s %8s %10s %10s %10s %10s %10s\n",
-                "k", "fgcalls", "||g||", "gtol", "f(X)", "rp", "rd")
+                    "k", "fgcalls", "||g||", "gtol", "f(X)", "rp", "rd")
             @printf("%4d %8d %10.2e %10.2e %10.2e %10.2e %10.2e\n",
-                k, fgcalls, norm(g), gtol, fval, rp, rd)
-        end
-
-        if method==:IR
-            ε = max(0.0, εRef[])
-            δ = δRef[]
-            dist = distRef[]
-            condition = ((τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2)
-            if !condition && (fgcount < f_calls_limit)
-                printlevel≥3 && println("WARNING: (τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2 fails")
-            end
-        end
-
-        if method==:IER
-            ε = max(0.0, εRef[])
-            β = βRef[]
-            dist = distRef[]
-            condition = (β^2 + 2α*ε ≤ (σ*dist)^2)
-            if !condition && (fgcount < f_calls_limit)
-                printlevel≥3 && println("WARNING: β^2 + 2α*ε ≤ (σ*dist)^2 fails")
-            end
+                    k, fgcalls, norm(g), gtol, fvals[fgcount], rp, rd)
         end
 
         # Update
         if method==:IAPG
             Y.data .= Xnew.data .+ ((t - 1)/tnew).*(Xnew.data .- Xold.data)
             Xold .= Xnew
-        end
-
-        if method==:IR
+        elseif method==:IR
             Y.data .= Xnew.data .- ((t/tnew)*(τ/L)).*V.data .+ ((t - 1)/tnew).*(Xnew.data .- Xold.data)
             Xold .= Xnew
-        end
-
-        if method==:IER
+        elseif method==:IER
             Xold.data .-= (tnew - t).*V.data .+ ((tnew - t)*L).*(Y.data .- Xnew.data)
         end
 

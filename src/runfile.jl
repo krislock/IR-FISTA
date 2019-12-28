@@ -3,9 +3,12 @@ include("ProjPSD.jl")
 include("calllbfgsb.jl")
 include("ncm.jl")
 
-function genprob(n, γ, f_calls_limit; memlim=10)
+function genprob(n, γ;
+                 f_calls_limit=2000,
+                 seed=0,
+                 memlim=10)
 
-    U, H = randncm(n, γ=γ)
+    U, H = randncm(n, γ=γ, seed=seed)
     ncm = NCM(n,
               memlim=memlim,
               f_calls_limit=f_calls_limit)
@@ -33,10 +36,19 @@ function runall(U, H, ncm; tol=1e-2, printlevel=0)
     return nothing
 end
 
-function tester(n, γ, f_calls_limit; tol=1e-2, printlevel=0)
-    U, H, ncm = genprob(n, γ, f_calls_limit)
-    runall(U, H, ncm, tol=tol, printlevel=printlevel)
+function tester(n, γ;
+                f_calls_limit=2000,
+                seed=0,
+                tol=1e-2,
+                printlevel=0)
+
+    U, H, ncm = genprob(n, γ,
+                        seed=seed,
+                        f_calls_limit=f_calls_limit)
+    runall(U, H, ncm,
+           tol=tol,
+           printlevel=printlevel)
 end
 
-tester(10, 0.1, 1000, printlevel=1)
+#tester(10, 0.1, 100)
 

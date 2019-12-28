@@ -4,13 +4,19 @@ include("runfile.jl")
 
 
 function runtests(n, γ, kmax, f_calls_limit)
-    U, H, ncm = genprob(n, γ, f_calls_limit)
+    U, H, ncm = genprob(n, γ, f_calls_limit=f_calls_limit)
+
+    J = Symmetric(ones(n,n))
+    ncm(U, J, kmax=3)
+    Xold = copy(ncm.Xold)
+    y = copy(ncm.res.y)
 
     tol = 1e-2
     t1 = @elapsed success =
         ncm(U, H, method=:IAPG,
             kmax=kmax,
             tol=tol,
+            useXold=true,
             f_calls_limit=f_calls_limit)
     fgcount = ncm.res.fgcountRef[]
     r1 = ncm.res.resvals[1:fgcount]
@@ -18,6 +24,8 @@ function runtests(n, γ, kmax, f_calls_limit)
             n, γ, kmax, "IAPG", fgcount, r1[end], t1)
 
     tol = r1[end]
+    ncm.Xold .= Xold
+    ncm.res.y .= y
     t2 = @elapsed success =
         ncm(U, H, method=:IR, τ=0.95,
             tol=tol,
@@ -32,7 +40,15 @@ end
 
 
 function makeplot(r1, r2)
-    ylim = (r1[end] > 1e0) ? [1e0, 1e3] : [1e-1, 1e2]
+    if r1[end] < 1e-2
+        ylim = [1e-3, 1e1]
+    elseif r1[end] < 1e-1
+        ylim = [1e-2, 1e2]
+    elseif r1[end] < 1e0
+        ylim = [1e-1, 1e3]
+    else
+        ylim = [1e0, 1e4]
+    end
     plt = plot(yaxis=:log,
                xlim=[0, 900],
                ylim=ylim,
@@ -61,8 +77,7 @@ end
         "n", "γ", "kmax", "method", "fgcalls", "resval", "time")
 
 kmax = 300
-#for n = [587, 692, 834, 1255, 1869]
-for n = [100]
+for n = [587, 692, 834, 1255, 1869]
     for γ = [0.1, 0.05]
         test(n, γ, kmax)
     end
