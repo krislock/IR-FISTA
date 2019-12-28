@@ -1,6 +1,6 @@
 using Plots, LaTeXStrings, Printf
 
-include("runfile.jl")
+include("tester.jl")
 
 
 function runtests(n, γ; f_calls_limit=2000)

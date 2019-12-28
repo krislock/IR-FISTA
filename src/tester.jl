@@ -50,5 +50,3 @@ function tester(n, γ;
            printlevel=printlevel)
 end
 
-#tester(10, 0.1, 100)
-
