@@ -37,6 +37,7 @@ struct NCM
     V::Symmetric{Float64,Array{Float64,2}}
     X::Symmetric{Float64,Array{Float64,2}}
     Z::Symmetric{Float64,Array{Float64,2}}
+    Rd::Symmetric{Float64,Array{Float64,2}}
     Xold::Symmetric{Float64,Array{Float64,2}}
     wa::Vector{Float64}
     iwa::Vector{Int32}
@@ -74,6 +75,7 @@ struct NCM
         V    = copy(M)
         X    = copy(M)
         Z    = copy(M)
+        Rd   = copy(M)
         Xold = copy(M)
 
         nmax = n
@@ -111,7 +113,7 @@ struct NCM
         res = NCMresults(n, f_calls_limit)
 
         new(n, memlim, f_calls_limit,
-            g, d, M, H2, Y, ∇fY, Γ, V, X, Z, Xold,
+            g, d, M, H2, Y, ∇fY, Γ, V, X, Z, Rd, Xold,
             wa, iwa, nbd, lower, upper,
             task, task2, csave, lsave, isave, dsave,
             nRef, mRef, iprint, fRef, factr, pgtol,
@@ -148,7 +150,7 @@ end
 
 # Evaluates dual objective function and its gradient
 function dualobj!(gg, y, proj, method,
-        n, H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z,
+        n, H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z, Rd,
         fgcountRef, fvals, resvals,
         rpRef, rdRef, εRef, δRef, distRef, L, τ)
 
@@ -186,15 +188,17 @@ function dualobj!(gg, y, proj, method,
     end
     @inbounds for j=1:n
         for i=1:j
-            Λ.data[i,j] = Ldτ*(X.data[i,j] - M.data[i,j])
-            Γ.data[i,j] = -Λ.data[i,j]
             Xnew.data[i,j] = d[i]*d[j]*X.data[i,j]
-            Z.data[i,j] = Xnew.data[i,j] - Y.data[i,j]
-            V.data[i,j] = ∇fY.data[i,j] + Ldτ*Z.data[i,j] + Γ.data[i,j]
-            M.data[i,j] = H.data[i,j]*(Xnew.data[i,j] - U.data[i,j])
+            Λ.data[i,j]    = Ldτ*(X.data[i,j] - M.data[i,j])
+            Γ.data[i,j]    = -Λ.data[i,j]
+            Z.data[i,j]    = Xnew.data[i,j] - Y.data[i,j]
+            V.data[i,j]    = ∇fY.data[i,j] + Ldτ*Z.data[i,j] + Γ.data[i,j]
+            M.data[i,j]    = H.data[i,j]*(Xnew.data[i,j] - U.data[i,j])
+            Rd.data[i,j]   = H.data[i,j]*M.data[i,j] + Γ.data[i,j]
         end
-        Γ.data[j,j] += y[j]
-        V.data[j,j] += y[j]
+        Γ.data[j,j]  += y[j]
+        V.data[j,j]  += y[j]
+        Rd.data[j,j] += y[j]
     end
 
     # V.data .= ∇fY .+ Ldτ.*(Xnew .- Y) .+ Γ
@@ -206,13 +210,10 @@ function dualobj!(gg, y, proj, method,
     # Compute and store the optim. cond. residual
     @inbounds for j=1:n
         d[j] = 1.0 - Xnew[j,j]
-        for i=1:j
-            M.data[i,j] = H.data[i,j]*M.data[i,j] + Γ.data[i,j]
-        end
     end
     rpRef[] = norm(d)/(1 + √n)
     #M.data .= H2.*(Xnew .- U) .+ Γ
-    rdRef[] = fronorm(M, proj.work)
+    rdRef[] = fronorm(Rd, proj.work)
     resvals[fgcountRef[]] = max(rpRef[],rdRef[])
 
     # Compute the gradient of the dual function
@@ -270,6 +271,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
     V    = ncm.V
     X    = ncm.X
     Z    = ncm.Z
+    Rd   = ncm.Rd
     Xold = ncm.Xold
 
     fill!(g,    0.0)
@@ -282,6 +284,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
     fill!(V,    0.0)
     fill!(X,    0.0)
     fill!(Z,    0.0)
+    fill!(Rd,   0.0)
 
     if !useXold
         fill!(Xold, 0.0)
@@ -401,7 +404,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
 
         # Solve the subproblem
         innersuccess = calllbfgsb!(g, y, proj, tol,
-            H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z,
+            H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z, Rd,
             fgcountRef, fvals, resvals,
             rpRef, rdRef, εRef, δRef, βRef, distRef,
             L, τ, α, σ,
