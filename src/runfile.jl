@@ -13,30 +13,30 @@ function genprob(n, γ, f_calls_limit; memlim=10)
     return U, H, ncm
 end
 
-function runall(U, H, ncm; tol=1e-2, verbose=false)
+function runall(U, H, ncm; tol=1e-2, printlevel=0)
 
     H2 = ncm.H2
     H2.data .= H.^2
     L = fronorm(H2, ncm.proj.work)
-    α = 2.0*(1/L)
+    α = round(1/L, RoundUp, digits=2)
 
     @time ncm(U, H, method=:IAPG,
         f_calls_limit=ncm.f_calls_limit,
-        tol=tol, verbose=verbose)
+        tol=tol, printlevel=printlevel)
     @time ncm(U, H, method=:IR, τ=0.95,
         f_calls_limit=ncm.f_calls_limit,
-        tol=tol, verbose=verbose)
+        tol=tol, printlevel=printlevel)
     @time ncm(U, H, method=:IER, α=α,
         f_calls_limit=ncm.f_calls_limit,
-        tol=tol, verbose=verbose)
+        tol=tol, printlevel=printlevel)
 
     return nothing
 end
 
-function tester(n, γ, f_calls_limit; tol=1e-2, verbose=false)
+function tester(n, γ, f_calls_limit; tol=1e-2, printlevel=0)
     U, H, ncm = genprob(n, γ, f_calls_limit)
-    runall(U, H, ncm, tol=tol, verbose=verbose)
+    runall(U, H, ncm, tol=tol, printlevel=printlevel)
 end
 
-tester(10, 0.1, 100, verbose=true)
+tester(10, 0.1, 1000, printlevel=1)
 

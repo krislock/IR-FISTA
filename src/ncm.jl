@@ -236,7 +236,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
                     tol=1e-2,
                     kmax=2000,
                     f_calls_limit=2000,
-                    verbose=false,
+                    printlevel=0,
                     innerverbose=false,
                     lbfgsbprintlevel=-1,
                     cleanvals=true,
@@ -258,7 +258,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
 
     validmethod = (method==:IAPG || method==:IR || method==:IER)
     validmethod || error("method must be :IAPG or :IR or :IER")
-    verbose && println("$method method, τ=$τ, α=$α, σ=$σ, tol=$tol")
+    printlevel≥1 && println("$method method, τ=$τ, α=$α, σ=$σ, tol=$tol")
 
     g    = ncm.g
     d    = ncm.d
@@ -364,7 +364,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
     fgcount = fgcountRef[]
     innersuccess = true
 
-    while ( innersuccess &&
+    while ( #innersuccess &&
             max(rp, rd) > tol &&
             k < kmax &&
             fgcount < f_calls_limit )
@@ -414,7 +414,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
             cleanvals=cleanvals,
         )
         if !innersuccess
-            println("Failed to solve subproblem.")
+            printlevel≥2 && println("Failed to solve subproblem.")
         end
         fgcount = fgcountRef[]
         fgcalls = fgcount - (f_calls_limit - maxfgcalls)
@@ -423,7 +423,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
         rp   = rpRef[]
         rd   = rdRef[]
 
-        if verbose
+        if printlevel≥2
             mod(k, 20)==1 &&
             @printf("%4s %8s %10s %10s %10s %10s %10s\n",
                 "k", "fgcalls", "||g||", "gtol", "f(X)", "rp", "rd")
@@ -437,7 +437,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
             dist = distRef[]
             condition = ((τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2)
             if !condition && (fgcount < f_calls_limit)
-                verbose && println("WARNING: (τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2 fails")
+                printlevel≥3 && println("WARNING: (τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2 fails")
             end
         end
 
@@ -447,7 +447,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
             dist = distRef[]
             condition = (β^2 + 2α*ε ≤ (σ*dist)^2)
             if !condition && (fgcount < f_calls_limit)
-                verbose && println("WARNING: β^2 + 2α*ε ≤ (σ*dist)^2 fails")
+                printlevel≥3 && println("WARNING: β^2 + 2α*ε ≤ (σ*dist)^2 fails")
             end
         end
 
@@ -471,10 +471,10 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
 
     if max(rp, rd) > tol
         success = false
-        verbose && println("Failed to converge after $fgcount function evaluations.")
+        printlevel≥1 && println("Failed to converge after $fgcount function evaluations.")
     else
         success = true
-        verbose && println("Converged after $fgcount function evaluations.")
+        printlevel≥1 && println("Converged after $fgcount function evaluations.")
     end
 
     return success
