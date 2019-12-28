@@ -11,11 +11,9 @@ function runtests(n, γ, kmax, f_calls_limit)
     Xold = copy(ncm.Xold)
     y = copy(ncm.res.y)
 
-    tol = 1e-2
     t1 = @elapsed success =
         ncm(U, H, method=:IAPG,
             kmax=kmax,
-            tol=tol,
             useXold=true,
             f_calls_limit=f_calls_limit)
     fgcount = ncm.res.fgcountRef[]
@@ -29,6 +27,7 @@ function runtests(n, γ, kmax, f_calls_limit)
     t2 = @elapsed success =
         ncm(U, H, method=:IR, τ=0.95,
             tol=tol,
+            useXold=true,
             f_calls_limit=f_calls_limit)
     fgcount = ncm.res.fgcountRef[]
     r2 = ncm.res.resvals[1:fgcount]
