@@ -49,8 +49,9 @@ function calllbfgsb!(g, y, proj, tol,
         if cleanvals && linesearchcount > 1
             a, b = fgcountRef[]-linesearchcount+1, fgcountRef[]
             copytoinds = a:b-1
-            copyval!(fvals,   copytoinds, b)
-            copyval!(resvals, copytoinds, b)
+            copyval!(fvals,    copytoinds, b)
+            copyval!(resvals,  copytoinds, b)
+            copyval!(distvals, copytoinds, b)
         end
 
         if task2 == FG
