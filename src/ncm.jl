@@ -311,7 +311,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
 
     iprint[] = lbfgsbprintlevel
 
-    εRef    = ncm.εRef
+    εRef = ncm.εRef
 
     proj = ncm.proj
     res  = ncm.res
