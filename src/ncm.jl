@@ -455,6 +455,6 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
         printlevel≥1 && println("Converged after $fgcount function evaluations.")
     end
 
-    return success
+    return success, k
 end
 
