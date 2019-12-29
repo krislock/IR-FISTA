@@ -3,7 +3,7 @@ using Plots, LaTeXStrings, Printf
 include("tester.jl")
 
 
-function runtests(n, γ; f_calls_limit=2000)
+function runtests(n, γ, kmax; f_calls_limit=2000)
     U, H, ncm = genprob(n, γ, f_calls_limit=f_calls_limit)
 
     J = Symmetric(ones(n,n))
@@ -11,8 +11,19 @@ function runtests(n, γ; f_calls_limit=2000)
     Xold = copy(ncm.Xold)
     y = copy(ncm.res.y)
 
-    tol = 1e-0
-    t1 = @elapsed success = ncm(U, H, method=:IAPG,
+    tol = 1e-6
+    ncm(U, H,
+        kmax=kmax,
+        tol=tol,
+        useXold=true,
+        f_calls_limit=f_calls_limit)
+    fgcount = ncm.res.fgcountRef[]
+    minresval = minimum(ncm.res.resvals[1:fgcount])
+
+    ncm.Xold .= Xold
+    ncm.res.y .= y
+    tol = minresval
+    t1 = @elapsed success, k = ncm(U, H, method=:IAPG,
                                 tol=tol,
                                 useXold=true,
                                 f_calls_limit=f_calls_limit)
@@ -21,13 +32,13 @@ function runtests(n, γ; f_calls_limit=2000)
     rp = ncm.res.rpRef[]
     rd = ncm.res.rdRef[]
     fval = ncm.res.fvals[fgcount]
-    @printf("%4d %6.2f %8s %8d %10.2e %10.2e %16.8e %8.2f\n",
-            n, γ, "IAPG", fgcount, rp, rd, fval, t1)
+    @printf("%4d %6.2f %8s %6d %8d %10.2e %10.2e %10.2e %8.2f\n",
+            n, γ, "IAPG", k, fgcount, rp, rd, fval, t1)
 
-    tol = r1[end]
     ncm.Xold .= Xold
     ncm.res.y .= y
-    t2 = @elapsed success = ncm(U, H, method=:IR, τ=0.95,
+    tol = minresval
+    t2 = @elapsed success, k = ncm(U, H, method=:IR, τ=0.95,
                                 tol=tol,
                                 useXold=true,
                                 f_calls_limit=f_calls_limit)
@@ -36,8 +47,8 @@ function runtests(n, γ; f_calls_limit=2000)
     rp = ncm.res.rpRef[]
     rd = ncm.res.rdRef[]
     fval = ncm.res.fvals[fgcount]
-    @printf("%4d %6.2f %8s %8d %10.2e %10.2e %16.8e %8.2f\n",
-            n, γ, "IR", fgcount, rp, rd, fval, t2)
+    @printf("%4d %6.2f %8s %6d %8d %10.2e %10.2e %10.2e %8.2f\n",
+            n, γ, "IR", k, fgcount, rp, rd, fval, t2)
 
     return r1, r2
 end
@@ -67,23 +78,23 @@ function makeplot(r1, r2)
 end
 
 
-function test(n, γ; f_calls_limit=2000)
-    r1, r2 = runtests(n, γ, f_calls_limit=f_calls_limit)
+function test(n, γ, kmax; f_calls_limit=2000)
+    r1, r2 = runtests(n, γ, kmax, f_calls_limit=f_calls_limit)
     plt = makeplot(r1, r2)
-    savefig(plt, "../figs/n$n-γ$γ.pdf")
+    savefig(plt, "../figs/n$n-γ$γ-kmax$kmax.pdf")
     return nothing
 end
 
 ################################################################################
 
 
-@printf("%4s %6s %8s %8s %10s %10s %16s %8s\n",
-        "n", "γ", "method", "fgcalls", "rp", "rd", "fval", "time")
+@printf("%4s %6s %8s %6s %8s %10s %10s %10s %8s\n",
+        "n", "γ", "method", "k", "fgcalls", "rp", "rd", "fval", "time")
 
-#for n = [587, 692, 834, 1255, 1869]
-for n = [100]
-    for γ = [0.01, 0.05, 0.1, 0.5]
-        test(n, γ, f_calls_limit=4000)
+kmax = 300
+for n = [587, 692, 834, 1255, 1869]
+    for γ = [0.05, 0.1]
+        test(n, γ, kmax, f_calls_limit=4000)
     end
 end
 
