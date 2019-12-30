@@ -33,6 +33,7 @@ struct NCM
     g::Vector{Float64}
     d::Vector{Float64}
     M::Symmetric{Float64,Array{Float64,2}}
+    R::Symmetric{Float64,Array{Float64,2}}
     H2::Symmetric{Float64,Array{Float64,2}}
     Y::Symmetric{Float64,Array{Float64,2}}
     ∇fY::Symmetric{Float64,Array{Float64,2}}
@@ -68,6 +69,7 @@ struct NCM
         d = zeros(n)
 
         M    = Symmetric(zeros(n,n))
+        R    = copy(M)
         H2   = copy(M)
         Y    = copy(M)
         ∇fY  = copy(M)
@@ -110,7 +112,7 @@ struct NCM
         res = NCMresults(n, f_calls_limit)
 
         new(n, memlim, f_calls_limit,
-            g, d, M, H2, Y, ∇fY, Γ, V, X, Z, Rd, Xold,
+            g, d, M, R, H2, Y, ∇fY, Γ, V, X, Z, Rd, Xold,
             wa, iwa, nbd, lower, upper,
             task, task2, csave, lsave, isave, dsave,
             nRef, mRef, iprint, fRef, factr, pgtol,
@@ -146,10 +148,40 @@ end
 
 
 # Evaluates dual objective function and its gradient
-function dualobj!(gg, y, proj, method,
-        n, H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z, Rd,
-        fgcountRef, fvals, resvals, distvals,
-        rpRef, rdRef, εRef, L, τ)
+function dualobj!(ncm, U, H, L, τ;
+                  method=method,
+                  scaleX=scaleX,
+                 )
+
+    n   = ncm.n
+    H2  = ncm.H2
+    Y   = ncm.Y
+    ∇fY = ncm.∇fY
+    M   = ncm.M
+    X   = ncm.X
+    d   = ncm.d
+    Γ   = ncm.Γ
+    Z   = ncm.Z
+    R   = ncm.R
+    Rd  = ncm.Rd
+    g   = ncm.g
+    V   = ncm.V
+
+    proj = ncm.proj
+    res  = ncm.res
+
+    Xnew = res.X
+    y    = res.y
+    Λ    = res.Λ
+
+    rpRef = res.rpRef
+    rdRef = res.rdRef
+
+    fvals    = res.fvals
+    resvals  = res.resvals
+    distvals = res.distvals
+
+    fgcountRef = res.fgcountRef
 
     fgcountRef[] += 1
     fgcount = fgcountRef[]
@@ -173,38 +205,53 @@ function dualobj!(gg, y, proj, method,
 
     proj(X)
 
-    # Λ.data .= Ldτ.*(X .- M)         # Λ is psd
+    # Λ.data .= Ldτ.*(X .- M)     # Λ is psd
     # Γ.data .= Diagonal(y) .- Λ
 
-    # Ensure that diag(Xnew).==1 exactly
-    @inbounds for j=1:n
-        if X.data[j,j] > 0.0
-            d[j] = 1.0/sqrt(X.data[j,j])
-        else
-            d[j] = 1.0
+    if scaleX
+        # Ensure that diag(Xnew).==1 exactly
+        @inbounds for j=1:n
+            if X.data[j,j] > 0.0
+                d[j] = 1.0/sqrt(X.data[j,j])
+            else
+                d[j] = 1.0
+            end
         end
+    end
+    if method==:IR || method==:IER
+        computeV = true
+    else
+        computeV = false
     end
     @inbounds for j=1:n
         for i=1:j
-            Xnew.data[i,j] = d[i]*d[j]*X.data[i,j]
+            if scaleX
+                Xnew.data[i,j] = d[i]*d[j]*X.data[i,j]
+            else
+                Xnew.data[i,j] = X.data[i,j]
+            end
             Λ.data[i,j]    = Ldτ*(X.data[i,j] - M.data[i,j])
             Γ.data[i,j]    = -Λ.data[i,j]
             Z.data[i,j]    = Xnew.data[i,j] - Y.data[i,j]
-            V.data[i,j]    = ∇fY.data[i,j] + Ldτ*Z.data[i,j] + Γ.data[i,j]
-            M.data[i,j]    = H.data[i,j]*(Xnew.data[i,j] - U.data[i,j])
+            if computeV
+                V.data[i,j]    = ∇fY.data[i,j] + Ldτ*Z.data[i,j] + Γ.data[i,j]
+            end
+            R.data[i,j]    = H.data[i,j]*(Xnew.data[i,j] - U.data[i,j])
             Rd.data[i,j]   = H.data[i,j]*M.data[i,j] + Γ.data[i,j]
         end
-        Γ.data[j,j]  += y[j]
-        V.data[j,j]  += y[j]
+        Γ.data[j,j] += y[j]
+        if computeV
+            V.data[j,j] += y[j]
+        end
         Rd.data[j,j] += y[j]
     end
 
     # V.data  .= ∇fY .+ Ldτ.*(Xnew .- Y) .+ Γ
-    # M.data  .= H.*(Xnew .- U)
+    # R.data  .= H.*(Xnew .- U)
     # Rd.data .= H2.*(Xnew .- U) .+ Γ
 
     # Compute and store the objective function
-    fvals[fgcount] = 0.5*fronorm(M, proj.work)^2
+    fvals[fgcount] = 0.5*fronorm(R, proj.work)^2
 
     # Compute and store the optim. cond. residual
     @inbounds for j=1:n
@@ -217,7 +264,7 @@ function dualobj!(gg, y, proj, method,
 
     # Compute the gradient of the dual function
     @inbounds for j=1:n
-        gg[j] = 1.0 - X.data[j,j]
+        g[j] = 1.0 - X.data[j,j]
     end
 
     w, inds = proj.w, 1:proj.m[]
@@ -240,6 +287,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
                     innerverbose=false,
                     lbfgsbprintlevel=-1,
                     cleanvals=true,
+                    scaleX=true,
                    )
 
     # Loss function and gradient
@@ -263,6 +311,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
     g    = ncm.g
     d    = ncm.d
     M    = ncm.M
+    R    = ncm.R
     H2   = ncm.H2
     Y    = ncm.Y
     ∇fY  = ncm.∇fY
@@ -273,43 +322,22 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
     Rd   = ncm.Rd
     Xold = ncm.Xold
 
-    fill!(g,    0.0)
-    fill!(d,    0.0)
-    fill!(M,    0.0)
-    fill!(H2,   0.0)
-    fill!(Y,    0.0)
-    fill!(∇fY,  0.0)
-    fill!(Γ,    0.0)
-    fill!(V,    0.0)
-    fill!(X,    0.0)
-    fill!(Z,    0.0)
-    fill!(Rd,   0.0)
+    fill!(g,   0.0)
+    fill!(d,   0.0)
+    fill!(M,   0.0)
+    fill!(R,   0.0)
+    fill!(H2,  0.0)
+    fill!(Y,   0.0)
+    fill!(∇fY, 0.0)
+    fill!(Γ,   0.0)
+    fill!(V,   0.0)
+    fill!(X,   0.0)
+    fill!(Z,   0.0)
+    fill!(Rd,  0.0)
 
     if !useXold
         fill!(Xold, 0.0)
     end
-
-    memlim = ncm.memlim
-    wa     = ncm.wa
-    iwa    = ncm.iwa
-    nbd    = ncm.nbd
-    lower  = ncm.lower
-    upper  = ncm.upper
-    task   = ncm.task
-    task2  = ncm.task2
-    csave  = ncm.csave
-    lsave  = ncm.lsave
-    isave  = ncm.isave
-    dsave  = ncm.dsave
-
-    nRef   = ncm.nRef
-    mRef   = ncm.mRef
-    iprint = ncm.iprint
-    fRef   = ncm.fRef
-    factr  = ncm.factr
-    pgtol  = ncm.pgtol
-
-    iprint[] = lbfgsbprintlevel
 
     εRef = ncm.εRef
 
@@ -381,17 +409,6 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
             tnew = (1 + √(1 + 4t^2))/2
         end
 
-        # Reset L-BFGS-B arrays
-        fill!(wa,    0.0)
-        fill!(iwa,   0)
-        fill!(task,  Cuchar(' '))
-        fill!(csave, Cuchar(' '))
-        fill!(lsave, 0)
-        fill!(isave, 0)
-        fill!(dsave, 0.0)
-
-        maxfgcalls = f_calls_limit - fgcount
-
         if method==:IAPG
             gtol = (1 + √n)*min(1/tnew^3.1, 0.2*rd)
         end
@@ -400,21 +417,18 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
             gtol = 0.0
         end
 
+        maxfgcalls = f_calls_limit - fgcount
+
         # Solve the subproblem
-        innersuccess = calllbfgsb!(g, y, proj, tol,
-            H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z, Rd,
-            fgcountRef, fvals, resvals, distvals,
-            rpRef, rdRef, εRef,
-            L, τ, α, σ,
-            n, memlim, wa, iwa, nbd, lower, upper,
-            task, task2, csave, lsave, isave, dsave,
-            nRef, mRef, iprint, fRef, factr, pgtol;
+        innersuccess = calllbfgsb!(ncm, U, H, tol, L, τ, α, σ;
             method=method,
             maxfgcalls=maxfgcalls,
             gtol=gtol,
             exact=exact,
             verbose=innerverbose,
+            lbfgsbprintlevel=lbfgsbprintlevel,
             cleanvals=cleanvals,
+            scaleX=scaleX,
         )
         if !innersuccess
             printlevel≥2 && println("Failed to solve subproblem.")
@@ -424,13 +438,14 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
 
         rp = rpRef[]
         rd = rdRef[]
+        rankX = ncm.proj.m[]
 
         if printlevel≥2
             mod(k, 20)==1 &&
-            @printf("%4s %8s %10s %10s %10s %10s %10s\n",
-                    "k", "fgcalls", "||g||", "gtol", "f(X)", "rp", "rd")
-            @printf("%4d %8d %10.2e %10.2e %10.2e %10.2e %10.2e\n",
-                    k, fgcalls, norm(g), gtol, fvals[fgcount], rp, rd)
+            @printf("%4s %8s %10s %10s %10s %10s %10s %8s\n",
+                "k", "fgcalls", "||g||", "gtol", "f(X)", "rp", "rd", "rank(X)")
+            @printf("%4d %8d %10.2e %10.2e %10.2e %10.2e %10.2e %8d\n",
+                k, fgcalls, norm(g), gtol, fvals[fgcount], rp, rd, rankX)
         end
 
         # Update

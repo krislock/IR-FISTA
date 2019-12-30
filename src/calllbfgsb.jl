@@ -14,21 +14,63 @@ function copyval!(x, copytoinds, copyfromind)
     end
 end
 
-function calllbfgsb!(g, y, proj, tol,
-        H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z, Rd,
-        fgcountRef, fvals, resvals, distvals,
-        rpRef, rdRef, εRef,
-        L, τ, α, σ,
-        n, memlim, wa, iwa, nbd, lower, upper,
-        task, task2, csave, lsave, isave, dsave,
-        nRef, mRef, iprint, fRef, factr, pgtol;
+function calllbfgsb!(ncm, U, H, tol, L, τ, α, σ;
         method=:IAPG,
         maxfgcalls=100,
         gtol=1e-2,
         exact=false,
         verbose=false,
+        lbfgsbprintlevel=-1,
         cleanvals=true,
+        scaleX=true,
     )
+
+    n    = ncm.n
+    g    = ncm.g
+    V    = ncm.V
+    Z    = ncm.Z
+    εRef = ncm.εRef
+
+    wa     = ncm.wa
+    iwa    = ncm.iwa
+    nbd    = ncm.nbd
+    lower  = ncm.lower
+    upper  = ncm.upper
+    task   = ncm.task
+    task2  = ncm.task2
+    csave  = ncm.csave
+    lsave  = ncm.lsave
+    isave  = ncm.isave
+    dsave  = ncm.dsave
+    nRef   = ncm.nRef
+    mRef   = ncm.mRef
+    iprint = ncm.iprint
+    fRef   = ncm.fRef
+    factr  = ncm.factr
+    pgtol  = ncm.pgtol
+
+    iprint[] = lbfgsbprintlevel
+
+    proj = ncm.proj
+    res  = ncm.res
+
+    Xnew = res.X
+    y    = res.y
+    Λ    = res.Λ
+
+    fvals      = res.fvals
+    resvals    = res.resvals
+    distvals   = res.distvals
+    fgcountRef = res.fgcountRef
+
+    # Reset L-BFGS-B arrays
+    fill!(wa,    0.0)
+    fill!(iwa,   0)
+    fill!(task,  Cuchar(' '))
+    fill!(csave, Cuchar(' '))
+    fill!(lsave, 0)
+    fill!(isave, 0)
+    fill!(dsave, 0.0)
 
     fgcalls = 0
     linesearchcount = 0
@@ -58,11 +100,9 @@ function calllbfgsb!(g, y, proj, tol,
             if fgcalls >= maxfgcalls
                 copyto!(task, STOP)
             else
-                fRef[] = dualobj!(g, y, proj, method,
-                    n, H, H2, Y, U, ∇fY, M, X, Λ, Γ, d, Xnew, V, Z, Rd,
-                    fgcountRef, fvals, resvals, distvals,
-                    rpRef, rdRef, εRef, L, τ)
-
+                fRef[] = dualobj!(ncm, U, H, L, τ,
+                                  method=method,
+                                  scaleX=scaleX)
                 fgcalls += 1
                 if fgcalls > 1
                     linesearchcount += 1
