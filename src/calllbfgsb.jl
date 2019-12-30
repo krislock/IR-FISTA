@@ -27,6 +27,7 @@ function calllbfgsb!(ncm, U, H, tol, L, τ, α, σ;
 
     n    = ncm.n
     g    = ncm.g
+
     V    = ncm.V
     Z    = ncm.Z
     εRef = ncm.εRef
@@ -89,7 +90,8 @@ function calllbfgsb!(ncm, U, H, tol, L, τ, α, σ;
             iprint, csave, lsave, isave, dsave)
 
         if cleanvals && linesearchcount > 1
-            a, b = fgcountRef[]-linesearchcount+1, fgcountRef[]
+            a = fgcountRef[]-linesearchcount+1
+            b = fgcountRef[]
             copytoinds = a:b-1
             copyval!(fvals,    copytoinds, b)
             copyval!(resvals,  copytoinds, b)

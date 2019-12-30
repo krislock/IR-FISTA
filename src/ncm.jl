@@ -105,7 +105,7 @@ struct NCM
         factr  = Ref{Cdouble}(0.0)
         pgtol  = Ref{Cdouble}(0.0)
 
-        εRef    = Ref{Float64}(0.0)
+        εRef   = Ref{Float64}(0.0)
 
         proj = ProjPSD(n)
 
@@ -153,19 +153,20 @@ function dualobj!(ncm, U, H, L, τ;
                   scaleX=scaleX,
                  )
 
-    n   = ncm.n
+    n = ncm.n
+    d = ncm.d
+    g = ncm.g
+
+    M   = ncm.M
+    R   = ncm.R
     H2  = ncm.H2
     Y   = ncm.Y
     ∇fY = ncm.∇fY
-    M   = ncm.M
-    X   = ncm.X
-    d   = ncm.d
     Γ   = ncm.Γ
-    Z   = ncm.Z
-    R   = ncm.R
-    Rd  = ncm.Rd
-    g   = ncm.g
     V   = ncm.V
+    X   = ncm.X
+    Z   = ncm.Z
+    Rd  = ncm.Rd
 
     proj = ncm.proj
     res  = ncm.res
@@ -181,10 +182,8 @@ function dualobj!(ncm, U, H, L, τ;
     resvals  = res.resvals
     distvals = res.distvals
 
-    fgcountRef = res.fgcountRef
-
-    fgcountRef[] += 1
-    fgcount = fgcountRef[]
+    res.fgcountRef[] += 1
+    fgcount = res.fgcountRef[]
 
     τdL = τ/L
     Ldτ = L/τ
@@ -205,9 +204,6 @@ function dualobj!(ncm, U, H, L, τ;
 
     proj(X)
 
-    # Λ.data .= Ldτ.*(X .- M)     # Λ is psd
-    # Γ.data .= Diagonal(y) .- Λ
-
     if scaleX
         # Ensure that diag(Xnew).==1 exactly
         @inbounds for j=1:n
@@ -223,6 +219,14 @@ function dualobj!(ncm, U, H, L, τ;
     else
         computeV = false
     end
+
+    # Λ.data  .= Ldτ.*(X .- M)                   # Λ is psd
+    # Γ.data  .= Diagonal(y) .- Λ
+    # Z.data  .= Xnew .- Y
+    # V.data  .= ∇fY .+ Ldτ.*(Xnew .- Y) .+ Γ
+    # R.data  .= H.*(Xnew .- U)
+    # Rd.data .= H2.*(Xnew .- U) .+ Γ
+
     @inbounds for j=1:n
         for i=1:j
             if scaleX
@@ -230,14 +234,14 @@ function dualobj!(ncm, U, H, L, τ;
             else
                 Xnew.data[i,j] = X.data[i,j]
             end
-            Λ.data[i,j]    = Ldτ*(X.data[i,j] - M.data[i,j])
-            Γ.data[i,j]    = -Λ.data[i,j]
-            Z.data[i,j]    = Xnew.data[i,j] - Y.data[i,j]
+            Λ.data[i,j] = Ldτ*(X.data[i,j] - M.data[i,j])
+            Γ.data[i,j] = -Λ.data[i,j]
+            Z.data[i,j] = Xnew.data[i,j] - Y.data[i,j]
             if computeV
-                V.data[i,j]    = ∇fY.data[i,j] + Ldτ*Z.data[i,j] + Γ.data[i,j]
+                V.data[i,j] = ∇fY.data[i,j] + Ldτ*Z.data[i,j] + Γ.data[i,j]
             end
-            R.data[i,j]    = H.data[i,j]*(Xnew.data[i,j] - U.data[i,j])
-            Rd.data[i,j]   = H.data[i,j]*M.data[i,j] + Γ.data[i,j]
+            R.data[i,j]  = H.data[i,j]*(Xnew.data[i,j] - U.data[i,j])
+            Rd.data[i,j] = H.data[i,j]*M.data[i,j] + Γ.data[i,j]
         end
         Γ.data[j,j] += y[j]
         if computeV
@@ -245,10 +249,6 @@ function dualobj!(ncm, U, H, L, τ;
         end
         Rd.data[j,j] += y[j]
     end
-
-    # V.data  .= ∇fY .+ Ldτ.*(Xnew .- Y) .+ Γ
-    # R.data  .= H.*(Xnew .- U)
-    # Rd.data .= H2.*(Xnew .- U) .+ Γ
 
     # Compute and store the objective function
     fvals[fgcount] = 0.5*fronorm(R, proj.work)^2
@@ -309,57 +309,21 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
     printlevel≥1 && println("$method method, τ=$τ, α=$α, σ=$σ, tol=$tol")
 
     g    = ncm.g
-    d    = ncm.d
-    M    = ncm.M
-    R    = ncm.R
     H2   = ncm.H2
     Y    = ncm.Y
-    ∇fY  = ncm.∇fY
-    Γ    = ncm.Γ
     V    = ncm.V
-    X    = ncm.X
-    Z    = ncm.Z
-    Rd   = ncm.Rd
     Xold = ncm.Xold
-
-    fill!(g,   0.0)
-    fill!(d,   0.0)
-    fill!(M,   0.0)
-    fill!(R,   0.0)
-    fill!(H2,  0.0)
-    fill!(Y,   0.0)
-    fill!(∇fY, 0.0)
-    fill!(Γ,   0.0)
-    fill!(V,   0.0)
-    fill!(X,   0.0)
-    fill!(Z,   0.0)
-    fill!(Rd,  0.0)
-
-    if !useXold
-        fill!(Xold, 0.0)
-    end
-
-    εRef = ncm.εRef
 
     proj = ncm.proj
     res  = ncm.res
 
-    Xnew       = res.X
-    y          = res.y
-    Λ          = res.Λ
+    Xnew = res.X
+    y    = res.y
+
     fgcountRef = res.fgcountRef
-    fvals      = res.fvals
-    resvals    = res.resvals
-    distvals   = res.distvals
     rpRef      = res.rpRef
     rdRef      = res.rdRef
-
-    fill!(Xnew, 0.0)
-    fill!(Λ,    0.0)
-
-    if !useXold
-        fill!(y, 0.0)
-    end
+    fvals      = res.fvals
 
     H2.data .= H.^2
 
@@ -385,6 +349,12 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
         λ = α/(1 + α*L)
         t0 = 0.0
     end
+
+    if !useXold
+        fill!(Xold, 0.0)
+    end
+
+    fill!(y, 0.0)
 
     k = 0
     t = t0
@@ -438,7 +408,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
 
         rp = rpRef[]
         rd = rdRef[]
-        rankX = ncm.proj.m[]
+        rankX = proj.m[]
 
         if printlevel≥2
             mod(k, 20)==1 &&
