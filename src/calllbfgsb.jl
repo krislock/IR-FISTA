@@ -121,11 +121,15 @@ function calllbfgsb!(ncm, U, H, tol, L, τ, α, σ;
                         dist = distvals[fgcountRef[]]
                         if method==:IR
                             δ = fronorm(V, proj.work)
-                            condition = ((τ*δ)^2 + 2τ*ε*L ≤ L*((1-τ)*L - α*τ)*dist^2)
+                            lhs = (τ*δ)^2 + 2τ*ε*L
+                            rhs = L*((1-τ)*L - α*τ)*dist^2
+                            condition = (lhs ≤ rhs)
                         elseif method==:IER
                             Z.data .+= α.*V.data
                             β = fronorm(Z, proj.work)
-                            condition = (β^2 + 2α*ε ≤ (σ*dist)^2)
+                            lhs = β^2 + 2α*ε
+                            rhs = (σ*dist)^2
+                            condition = (lhs ≤ rhs)
                         end
                     end
 
