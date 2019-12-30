@@ -189,7 +189,6 @@ function dualobj!(ncm, U, H, L, τ;
     Ldτ = L/τ
 
     # ∇fY.data .= H2.*(Y .- U)
-    # M .= ∇fY .+ Diagonal(y)    # M = ∇f(Y) + Diag(y)
     # M.data .= Y .- τdL.*M      # M = Y - (τ/L)*(∇f(Y) + Diag(y))
     # X .= M
     @inbounds for j=1:n
@@ -241,7 +240,7 @@ function dualobj!(ncm, U, H, L, τ;
                 V.data[i,j] = ∇fY.data[i,j] + Ldτ*Z.data[i,j] + Γ.data[i,j]
             end
             R.data[i,j]  = H.data[i,j]*(Xnew.data[i,j] - U.data[i,j])
-            Rd.data[i,j] = H.data[i,j]*M.data[i,j] + Γ.data[i,j]
+            Rd.data[i,j] = H.data[i,j]*R.data[i,j] + Γ.data[i,j]
         end
         Γ.data[j,j] += y[j]
         if computeV
@@ -268,7 +267,9 @@ function dualobj!(ncm, U, H, L, τ;
     end
 
     w, inds = proj.w, 1:proj.m[]
-    return sum(y) + 0.5*Ldτ*dot(w,inds,w,inds)
+    dualobjval = sum(y) + 0.5*Ldτ*dot(w,inds,w,inds)
+
+    return dualobjval
 end
 
 
