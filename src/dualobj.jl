@@ -1,8 +1,7 @@
 # Evaluates dual objective function and its gradient
 function dualobj!(ncm, G, H, L, τ;
-                  method=method,
-                  scaleX=scaleX,
-                 )
+                  method::Symbol=:IAPG,
+                  scaleX::Bool=true)
 
     n = ncm.n
     d = ncm.d

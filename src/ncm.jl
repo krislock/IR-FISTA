@@ -9,14 +9,14 @@ struct NCMresults
     rpRef::Base.RefValue{Float64}
     rdRef::Base.RefValue{Float64}
 
-    function NCMresults(n, f_calls_limit)
+    function NCMresults(n, maxfgcalls)
         X = Symmetric(zeros(n,n))
         y = zeros(n)
         Λ = Symmetric(zeros(n,n))
         fgcountRef = Ref{Int32}(0)
-        fvals    = Vector{Float64}(undef, f_calls_limit)
-        resvals  = Vector{Float64}(undef, f_calls_limit)
-        distvals = Vector{Float64}(undef, f_calls_limit)
+        fvals    = Vector{Float64}(undef, maxfgcalls)
+        resvals  = Vector{Float64}(undef, maxfgcalls)
+        distvals = Vector{Float64}(undef, maxfgcalls)
         rpRef    = Ref{Float64}(0.0)
         rdRef    = Ref{Float64}(0.0)
 
@@ -29,7 +29,7 @@ end
 struct NCM
     n::Int32
     memlim::Int32
-    f_calls_limit::Int32
+    maxfgcalls::Int32
     g::Vector{Float64}
     d::Vector{Float64}
     M::Symmetric{Float64,Array{Float64,2}}
@@ -64,7 +64,7 @@ struct NCM
     proj::ProjPSD
     res::NCMresults
 
-    function NCM(n; memlim=10, f_calls_limit=2000)
+    function NCM(n; memlim=10, maxfgcalls=2000)
         g = zeros(n)
         d = zeros(n)
 
@@ -109,9 +109,9 @@ struct NCM
 
         proj = ProjPSD(n)
 
-        res = NCMresults(n, f_calls_limit)
+        res = NCMresults(n, maxfgcalls)
 
-        new(n, memlim, f_calls_limit,
+        new(n, memlim, maxfgcalls,
             g, d, M, R, H2, Y, ∇fY, Γ, V, X, Z, Rd, Xold,
             wa, iwa, nbd, lower, upper,
             task, task2, csave, lsave, isave, dsave,
@@ -123,39 +123,38 @@ end
 
 function (ncm::NCM)(G::Symmetric{Float64,Array{Float64,2}},
                     H::Symmetric{Float64,Array{Float64,2}};
-                    method=:IAPG,
-                    exact=false,
-                    τ=1.0,
-                    α=0.0,
-                    σ=1.0,
-                    useXold=false,
-                    tol=1e-2,
-                    kmax=2000,
-                    f_calls_limit=2000,
-                    printlevel=0,
-                    innerverbose=false,
-                    lbfgsbprintlevel=-1,
-                    cleanvals=true,
-                    scaleX=true,
-                   )
+                    method::Symbol=:IAPG,
+                    τ::Float64=1.0,
+                    α::Float64=0.0,
+                    σ::Float64=1.0,
+                    tol::Float64=1e-2,
+                    kmax::Int64=2000,
+                    maxfgcalls::Int64=2000,
+                    printlevel::Int64=0,
+                    lbfgsbprintlevel::Int64=-1,
+                    exact::Bool=false,
+                    useXold::Bool=false,
+                    innerverbose::Bool=false,
+                    cleanvals::Bool=true,
+                    scaleX::Bool=true)
 
     # Loss function and gradient
     #f(X) = 0.5*norm(H.*(X .- G))^2
     #∇f(X) = Symmetric(H2.*(X .- G))
 
-    # Check for valid input
     n = size(G, 1)
-    f_calls_limit ≤ ncm.f_calls_limit ||
-    error("require f_calls_limit ≤ ncm.f_calls_limit")
+    validmethod = (method==:IAPG || method==:IR || method==:IER)
+
+    # Check for valid input
+    if maxfgcalls > ncm.maxfgcalls
+        error("require maxfgcalls ≤ ncm.maxfgcalls")
+    end
+    validmethod      || error("method must be :IAPG or :IR or :IER")
     n==ncm.n         || error("require n == ncm.n")
     size(G)==size(H) || error("G and H must be the same size")
     issymmetric(G)   || error("G must be symmetric")
     issymmetric(H)   || error("H must be symmetric")
     !iszero(H)       || error("H must be nonzero")
-
-    validmethod = (method==:IAPG || method==:IR || method==:IER)
-    validmethod || error("method must be :IAPG or :IR or :IER")
-    printlevel≥1 && println("$method method, τ=$τ, α=$α, σ=$σ, tol=$tol")
 
     g    = ncm.g
     H2   = ncm.H2
@@ -199,6 +198,8 @@ function (ncm::NCM)(G::Symmetric{Float64,Array{Float64,2}},
         t0 = 0.0
     end
 
+    printlevel≥1 && println("$method method, τ=$τ, α=$α, σ=$σ, tol=$tol")
+
     if !useXold
         fill!(Xold, 0.0)
     end
@@ -214,10 +215,10 @@ function (ncm::NCM)(G::Symmetric{Float64,Array{Float64,2}},
     fgcountRef[] = 0
     fgcount = fgcountRef[]
 
-    while ( #innersuccess &&
+    while (#innersuccess &&
            max(rp, rd) > tol &&
            k < kmax &&
-           fgcount < f_calls_limit )
+           fgcount < maxfgcalls)
 
         k += 1
 
@@ -236,24 +237,23 @@ function (ncm::NCM)(G::Symmetric{Float64,Array{Float64,2}},
             gtol = 0.0
         end
 
-        maxfgcalls = f_calls_limit - fgcount
+        maxinnerfgcalls = maxfgcalls - fgcount
 
         # Solve the subproblem
         innersuccess = calllbfgsb!(ncm, G, H, tol, L, τ, α, σ;
                                    method=method,
-                                   maxfgcalls=maxfgcalls,
+                                   maxfgcalls=maxinnerfgcalls,
                                    gtol=gtol,
                                    exact=exact,
                                    verbose=innerverbose,
                                    lbfgsbprintlevel=lbfgsbprintlevel,
                                    cleanvals=cleanvals,
-                                   scaleX=scaleX,
-                                  )
+                                   scaleX=scaleX)
         if !innersuccess
             printlevel≥2 && println("Failed to solve subproblem.")
         end
         fgcount = fgcountRef[]
-        fgcalls = fgcount - (f_calls_limit - maxfgcalls)
+        innerfgcalls = fgcount - (maxfgcalls - maxinnerfgcalls)
 
         rp = rpRef[]
         rd = rdRef[]
@@ -261,10 +261,10 @@ function (ncm::NCM)(G::Symmetric{Float64,Array{Float64,2}},
 
         if printlevel≥2
             mod(k, 20)==1 &&
-            @printf("%4s %8s %10s %10s %10s %10s %10s %8s\n",
-                    "k", "fgcalls", "||g||", "gtol", "f(X)", "rp", "rd", "rank(X)")
-            @printf("%4d %8d %10.2e %10.2e %10.2e %10.2e %10.2e %8d\n",
-                    k, fgcalls, norm(g), gtol, fvals[fgcount], rp, rd, rankX)
+            @printf("%4s %8s %10s %10s %10s %10s %10s %6s\n",
+                    "k", "fgcalls", "||g||", "gtol", "f(X)", "rp", "rd", "rank")
+            @printf("%4d %8d %10.2e %10.2e %10.2e %10.2e %10.2e %6d\n",
+                    k, innerfgcalls, norm(g), gtol, fvals[fgcount], rp, rd, rankX)
         end
 
         # Update

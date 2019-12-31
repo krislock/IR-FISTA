@@ -3,8 +3,8 @@ using Plots, LaTeXStrings, Printf
 include("tester.jl")
 
 
-function runtests(n, γ, kmax; f_calls_limit=2000)
-    U, G, H, ncm = genprob(n, γ, f_calls_limit=f_calls_limit)
+function runtests(n, γ, kmax; maxfgcalls=2000)
+    U, G, H, ncm = genprob(n, γ, maxfgcalls=maxfgcalls)
 
     J = Symmetric(ones(n,n))
     ncm(G, J, kmax=3)
@@ -17,7 +17,7 @@ function runtests(n, γ, kmax; f_calls_limit=2000)
                                    kmax=kmax,
                                    tol=tol,
                                    useXold=true,
-                                   f_calls_limit=f_calls_limit)
+                                   maxfgcalls=maxfgcalls)
     fgcount = ncm.res.fgcountRef[]
     r1 = ncm.res.resvals[1:fgcount]
     rp = ncm.res.rpRef[]
@@ -32,7 +32,7 @@ function runtests(n, γ, kmax; f_calls_limit=2000)
                                    kmax=kmax,
                                    tol=tol,
                                    useXold=true,
-                                   f_calls_limit=f_calls_limit)
+                                   maxfgcalls=maxfgcalls)
     fgcount = ncm.res.fgcountRef[]
     r2 = ncm.res.resvals[1:fgcount]
     rp = ncm.res.rpRef[]
@@ -60,8 +60,8 @@ function makeplot(r1, r2)
 end
 
 
-function test(n, γ, kmax; f_calls_limit=2000)
-    r1, r2 = runtests(n, γ, kmax, f_calls_limit=f_calls_limit)
+function test(n, γ, kmax; maxfgcalls=2000)
+    r1, r2 = runtests(n, γ, kmax, maxfgcalls=maxfgcalls)
     plt = makeplot(r1, r2)
     savefig(plt, "../figs/n$n-γ$γ-kmax$kmax.pdf")
     return nothing
@@ -76,7 +76,7 @@ end
 kmax = 2000
 for n = [587, 692, 834, 1255, 1869]
     for γ = [0.05, 0.1]
-        test(n, γ, kmax, f_calls_limit=2000)
+        test(n, γ, kmax, maxfgcalls=2000)
     end
 end
 

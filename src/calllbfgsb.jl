@@ -15,15 +15,14 @@ function copyval!(x, copytoinds, copyfromind)
 end
 
 function calllbfgsb!(ncm, G, H, tol, L, τ, α, σ;
-                     method=:IAPG,
-                     maxfgcalls=100,
-                     gtol=1e-2,
-                     exact=false,
-                     verbose=false,
-                     lbfgsbprintlevel=-1,
-                     cleanvals=true,
-                     scaleX=true,
-                    )
+                     method::Symbol=:IAPG,
+                     gtol::Float64=1e-2,
+                     maxfgcalls::Int64=100,
+                     lbfgsbprintlevel::Int64=-1,
+                     exact::Bool=false,
+                     verbose::Bool=false,
+                     cleanvals::Bool=true,
+                     scaleX::Bool=true)
 
     n    = ncm.n
     g    = ncm.g
