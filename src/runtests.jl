@@ -14,6 +14,7 @@ function runtests(n, γ, kmax; f_calls_limit=2000)
     ncm.Xold .= Xold
     tol = 1e-1
     t1 = @elapsed success, k = ncm(G, H, method=:IAPG,
+                                   kmax=kmax,
                                    tol=tol,
                                    useXold=true,
                                    f_calls_limit=f_calls_limit)
@@ -28,6 +29,7 @@ function runtests(n, γ, kmax; f_calls_limit=2000)
     ncm.Xold .= Xold
     tol = 1e-1
     t2 = @elapsed success, k = ncm(G, H, method=:IR, τ=0.95,
+                                   kmax=kmax,
                                    tol=tol,
                                    useXold=true,
                                    f_calls_limit=f_calls_limit)
