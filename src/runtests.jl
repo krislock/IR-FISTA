@@ -24,9 +24,9 @@ function runtests(n, γ, kmax; f_calls_limit=2000)
     ncm.res.y .= y
     tol = minresval
     t1 = @elapsed success, k = ncm(U, H, method=:IAPG,
-                                tol=tol,
-                                useXold=true,
-                                f_calls_limit=f_calls_limit)
+                                   tol=tol,
+                                   useXold=true,
+                                   f_calls_limit=f_calls_limit)
     fgcount = ncm.res.fgcountRef[]
     r1 = ncm.res.resvals[1:fgcount]
     rp = ncm.res.rpRef[]
@@ -39,9 +39,9 @@ function runtests(n, γ, kmax; f_calls_limit=2000)
     ncm.res.y .= y
     tol = minresval
     t2 = @elapsed success, k = ncm(U, H, method=:IR, τ=0.95,
-                                tol=tol,
-                                useXold=true,
-                                f_calls_limit=f_calls_limit)
+                                   tol=tol,
+                                   useXold=true,
+                                   f_calls_limit=f_calls_limit)
     fgcount = ncm.res.fgcountRef[]
     r2 = ncm.res.resvals[1:fgcount]
     rp = ncm.res.rpRef[]

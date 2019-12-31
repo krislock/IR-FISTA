@@ -15,15 +15,15 @@ function copyval!(x, copytoinds, copyfromind)
 end
 
 function calllbfgsb!(ncm, U, H, tol, L, τ, α, σ;
-        method=:IAPG,
-        maxfgcalls=100,
-        gtol=1e-2,
-        exact=false,
-        verbose=false,
-        lbfgsbprintlevel=-1,
-        cleanvals=true,
-        scaleX=true,
-    )
+                     method=:IAPG,
+                     maxfgcalls=100,
+                     gtol=1e-2,
+                     exact=false,
+                     verbose=false,
+                     lbfgsbprintlevel=-1,
+                     cleanvals=true,
+                     scaleX=true,
+                    )
 
     n    = ncm.n
     g    = ncm.g
@@ -86,8 +86,8 @@ function calllbfgsb!(ncm, U, H, tol, L, τ, α, σ;
 
         # This is the call to the L-BFGS-B code.
         setulb(nRef, mRef, y, lower, upper, nbd,
-            fRef, g, factr, pgtol, wa, iwa, task,
-            iprint, csave, lsave, isave, dsave)
+               fRef, g, factr, pgtol, wa, iwa, task,
+               iprint, csave, lsave, isave, dsave)
 
         if cleanvals && linesearchcount > 1
             a = fgcountRef[]-linesearchcount+1

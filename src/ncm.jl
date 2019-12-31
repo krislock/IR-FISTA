@@ -146,7 +146,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
     # Check for valid input
     n = size(U, 1)
     f_calls_limit ≤ ncm.f_calls_limit ||
-        error("require f_calls_limit ≤ ncm.f_calls_limit")
+    error("require f_calls_limit ≤ ncm.f_calls_limit")
     n==ncm.n         || error("require n == ncm.n")
     size(U)==size(H) || error("U and H must be the same size")
     issymmetric(U)   || error("U must be symmetric")
@@ -187,7 +187,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
     if method==:IR
         0 < τ ≤ 1 || error("IR method requires 0 < τ ≤ 1")
         0 ≤ α ≤ (1 - τ)*(L/τ) ||
-            error("IR method requires 0 ≤ α ≤ $((1 - τ)*(L/τ))")
+        error("IR method requires 0 ≤ α ≤ $((1 - τ)*(L/τ))")
         t0 = 1.0
     end
 
@@ -215,9 +215,9 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
     fgcount = fgcountRef[]
 
     while ( #innersuccess &&
-            max(rp, rd) > tol &&
-            k < kmax &&
-            fgcount < f_calls_limit )
+           max(rp, rd) > tol &&
+           k < kmax &&
+           fgcount < f_calls_limit )
 
         k += 1
 
@@ -240,15 +240,15 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
 
         # Solve the subproblem
         innersuccess = calllbfgsb!(ncm, U, H, tol, L, τ, α, σ;
-            method=method,
-            maxfgcalls=maxfgcalls,
-            gtol=gtol,
-            exact=exact,
-            verbose=innerverbose,
-            lbfgsbprintlevel=lbfgsbprintlevel,
-            cleanvals=cleanvals,
-            scaleX=scaleX,
-        )
+                                   method=method,
+                                   maxfgcalls=maxfgcalls,
+                                   gtol=gtol,
+                                   exact=exact,
+                                   verbose=innerverbose,
+                                   lbfgsbprintlevel=lbfgsbprintlevel,
+                                   cleanvals=cleanvals,
+                                   scaleX=scaleX,
+                                  )
         if !innersuccess
             printlevel≥2 && println("Failed to solve subproblem.")
         end
@@ -262,9 +262,9 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
         if printlevel≥2
             mod(k, 20)==1 &&
             @printf("%4s %8s %10s %10s %10s %10s %10s %8s\n",
-                "k", "fgcalls", "||g||", "gtol", "f(X)", "rp", "rd", "rank(X)")
+                    "k", "fgcalls", "||g||", "gtol", "f(X)", "rp", "rd", "rank(X)")
             @printf("%4d %8d %10.2e %10.2e %10.2e %10.2e %10.2e %8d\n",
-                k, fgcalls, norm(g), gtol, fvals[fgcount], rp, rd, rankX)
+                    k, fgcalls, norm(g), gtol, fvals[fgcount], rp, rd, rankX)
         end
 
         # Update
