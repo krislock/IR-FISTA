@@ -1,5 +1,5 @@
 # Evaluates dual objective function and its gradient
-function dualobj!(ncm, U, H, L, τ;
+function dualobj!(ncm, G, H, L, τ;
                   method=method,
                   scaleX=scaleX,
                  )
@@ -39,12 +39,12 @@ function dualobj!(ncm, U, H, L, τ;
     τdL = τ/L
     Ldτ = L/τ
 
-    # ∇fY.data .= H2.*(Y .- U)
+    # ∇fY.data .= H2.*(Y .- G)
     # M.data .= Y .- τdL.*M      # M = Y - (τ/L)*(∇f(Y) + Diag(y))
     # X .= M
     @inbounds for j=1:n
         for i=1:j
-            ∇fY.data[i,j] = H2.data[i,j]*(Y.data[i,j] - U.data[i,j])
+            ∇fY.data[i,j] = H2.data[i,j]*(Y.data[i,j] - G.data[i,j])
             M.data[i,j] = Y.data[i,j] - τdL*∇fY.data[i,j]
             X.data[i,j] = M.data[i,j]
         end
@@ -74,8 +74,8 @@ function dualobj!(ncm, U, H, L, τ;
     # Γ.data  .= Diagonal(y) .- Λ
     # Z.data  .= Xnew .- Y
     # V.data  .= ∇fY .+ Ldτ.*(Xnew .- Y) .+ Γ
-    # R.data  .= H.*(Xnew .- U)
-    # Rd.data .= H2.*(Xnew .- U) .+ Γ
+    # R.data  .= H.*(Xnew .- G)
+    # Rd.data .= H2.*(Xnew .- G) .+ Γ
 
     @inbounds for j=1:n
         for i=1:j
@@ -90,7 +90,7 @@ function dualobj!(ncm, U, H, L, τ;
             if computeV
                 V.data[i,j] = ∇fY.data[i,j] + Ldτ*Z.data[i,j] + Γ.data[i,j]
             end
-            R.data[i,j]  = H.data[i,j]*(Xnew.data[i,j] - U.data[i,j])
+            R.data[i,j]  = H.data[i,j]*(Xnew.data[i,j] - G.data[i,j])
             Rd.data[i,j] = H.data[i,j]*R.data[i,j] + Γ.data[i,j]
         end
         Γ.data[j,j] += y[j]

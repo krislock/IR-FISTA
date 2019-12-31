@@ -121,7 +121,7 @@ struct NCM
 end
 
 
-function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
+function (ncm::NCM)(G::Symmetric{Float64,Array{Float64,2}},
                     H::Symmetric{Float64,Array{Float64,2}};
                     method=:IAPG,
                     exact=false,
@@ -140,16 +140,16 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
                    )
 
     # Loss function and gradient
-    #f(X) = 0.5*norm(H.*(X .- U))^2
-    #∇f(X) = Symmetric(H2.*(X .- U))
+    #f(X) = 0.5*norm(H.*(X .- G))^2
+    #∇f(X) = Symmetric(H2.*(X .- G))
 
     # Check for valid input
-    n = size(U, 1)
+    n = size(G, 1)
     f_calls_limit ≤ ncm.f_calls_limit ||
     error("require f_calls_limit ≤ ncm.f_calls_limit")
     n==ncm.n         || error("require n == ncm.n")
-    size(U)==size(H) || error("U and H must be the same size")
-    issymmetric(U)   || error("U must be symmetric")
+    size(G)==size(H) || error("G and H must be the same size")
+    issymmetric(G)   || error("G must be symmetric")
     issymmetric(H)   || error("H must be symmetric")
     !iszero(H)       || error("H must be nonzero")
 
@@ -239,7 +239,7 @@ function (ncm::NCM)(U::Symmetric{Float64,Array{Float64,2}},
         maxfgcalls = f_calls_limit - fgcount
 
         # Solve the subproblem
-        innersuccess = calllbfgsb!(ncm, U, H, tol, L, τ, α, σ;
+        innersuccess = calllbfgsb!(ncm, G, H, tol, L, τ, α, σ;
                                    method=method,
                                    maxfgcalls=maxfgcalls,
                                    gtol=gtol,

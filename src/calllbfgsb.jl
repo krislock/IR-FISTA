@@ -14,7 +14,7 @@ function copyval!(x, copytoinds, copyfromind)
     end
 end
 
-function calllbfgsb!(ncm, U, H, tol, L, τ, α, σ;
+function calllbfgsb!(ncm, G, H, tol, L, τ, α, σ;
                      method=:IAPG,
                      maxfgcalls=100,
                      gtol=1e-2,
@@ -102,7 +102,7 @@ function calllbfgsb!(ncm, U, H, tol, L, τ, α, σ;
             if fgcalls >= maxfgcalls
                 copyto!(task, STOP)
             else
-                fRef[] = dualobj!(ncm, U, H, L, τ,
+                fRef[] = dualobj!(ncm, G, H, L, τ,
                                   method=method,
                                   scaleX=scaleX)
                 fgcalls += 1

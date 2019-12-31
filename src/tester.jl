@@ -18,19 +18,19 @@ function genprob(n, γ;
     return U, G, H, ncm
 end
 
-function runall(U, H, ncm; tol=1e-2, printlevel=0)
+function runall(G, H, ncm; tol=1e-2, printlevel=0)
 
     H2 = ncm.H2
     H2.data .= H.^2
     L = fronorm(H2, ncm.proj.work)
     α = round(1/L, RoundUp, digits=2)
 
-    @time ncm(U, H, method=:IAPG,
+    @time ncm(G, H, method=:IAPG,
               f_calls_limit=ncm.f_calls_limit, tol=tol, printlevel=printlevel)
-    @time ncm(U, H, method=:IR, τ=0.95,
+    @time ncm(G, H, method=:IR, τ=0.95,
               f_calls_limit=ncm.f_calls_limit, tol=tol, printlevel=printlevel)
-    @time ncm(U, H, method=:IER, α=α,
-              f_calls_limit=ncm.f_calls_limit, tol=tol, printlevel=printlevel)
+    #@time ncm(G, H, method=:IER, α=α,
+    #          f_calls_limit=ncm.f_calls_limit, tol=tol, printlevel=printlevel)
 
     return nothing
 end
@@ -44,7 +44,7 @@ function tester(n, γ;
     U, G, H, ncm = genprob(n, γ,
                         seed=seed,
                         f_calls_limit=f_calls_limit)
-    runall(U, H, ncm,
+    runall(G, H, ncm,
            tol=tol,
            printlevel=printlevel)
 end
