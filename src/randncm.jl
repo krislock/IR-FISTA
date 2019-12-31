@@ -27,28 +27,24 @@ function onion(n; η = 1.0)
     return S
 end
 
-function randncm(n; method=:onion, seed=0, γ=0.0, p=0.5)
+function randncm(n; seed=0, γ=0.0, p=0.5)
     rng = Random.seed!(seed)
 
     # Random target matrix
-    if method == :onion
-        U = onion(n)
-    else
-        U = 2*rand(n,n) .- 1; U = Symmetric(triu(U,1) + I)
-    end
+    U = onion(n)
 
     # Random noise
-    #E = Symmetric(triu(randn(n,n),1))
-    E = Symmetric(triu(rand(n,n),1))
-    U.data .= (1-γ).*U .+ γ.*E
-    U = Symmetric(triu(U,1) + I)
+    Etmp = 2*rand(n,n) .- 1
+    E = Symmetric(triu(Etmp,1) + I)
+    Gtmp = (1-γ).*U .+ γ.*E
+    G = Symmetric(triu(Gtmp,1) + I)
 
     # Random sparse H
-    H = [rand()<p ? 1.0 : 0.0 for i=1:n, j=1:n]
-    H = Symmetric(triu(H,1) + I)
+    Htmp = [rand()<p ? rand() : 0.0 for i=1:n, j=1:n]
+    H = Symmetric(triu(Htmp,1) + I)
 
     Random.seed!(rng)
 
-    return U, H
+    return U, G, H
 end
 

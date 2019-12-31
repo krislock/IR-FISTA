@@ -4,7 +4,7 @@ include("tester.jl")
 
 
 function runtests(n, γ, kmax; f_calls_limit=2000)
-    U, H, ncm = genprob(n, γ, f_calls_limit=f_calls_limit)
+    U, G, H, ncm = genprob(n, γ, f_calls_limit=f_calls_limit)
 
     J = Symmetric(ones(n,n))
     ncm(U, J, kmax=3)

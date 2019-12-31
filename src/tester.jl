@@ -10,12 +10,12 @@ function genprob(n, γ;
                  memlim=10,
                  f_calls_limit=2000)
 
-    U, H = randncm(n, γ=γ, seed=seed)
+    U, G, H = randncm(n, γ=γ, seed=seed)
     ncm = NCM(n,
               memlim=memlim,
               f_calls_limit=f_calls_limit)
 
-    return U, H, ncm
+    return U, G, H, ncm
 end
 
 function runall(U, H, ncm; tol=1e-2, printlevel=0)
@@ -41,7 +41,7 @@ function tester(n, γ;
                 tol=1e-2,
                 printlevel=0)
 
-    U, H, ncm = genprob(n, γ,
+    U, G, H, ncm = genprob(n, γ,
                         seed=seed,
                         f_calls_limit=f_calls_limit)
     runall(U, H, ncm,
