@@ -77,6 +77,7 @@ function calllbfgsb!(ncm, G, H, tol, L, τ, α, σ;
 
     StopBFGS = false
     successful = true
+    computeV = (method==:IR || method==:IER)
 
     # "We start the iteration by initializing task."
     copyto!(task, START)
@@ -102,7 +103,7 @@ function calllbfgsb!(ncm, G, H, tol, L, τ, α, σ;
                 copyto!(task, STOP)
             else
                 fRef[] = dualobj!(ncm, G, H, L, τ,
-                                  method=method,
+                                  computeV=computeV,
                                   scaleX=scaleX)
                 fgcalls += 1
                 if fgcalls > 1

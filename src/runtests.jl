@@ -3,7 +3,7 @@ using Plots, LaTeXStrings, Printf
 include("tester.jl")
 
 
-function runtests(n, γ, kmax; maxfgcalls=2000)
+function runtests(n, γ, kmax; maxfgcalls=100_000)
     U, G, H, ncm = genprob(n, γ, maxfgcalls=maxfgcalls)
 
     J = Symmetric(ones(n,n))
@@ -60,7 +60,7 @@ function makeplot(r1, r2)
 end
 
 
-function test(n, γ, kmax; maxfgcalls=2000)
+function test(n, γ, kmax; maxfgcalls=100_000)
     r1, r2 = runtests(n, γ, kmax, maxfgcalls=maxfgcalls)
     plt = makeplot(r1, r2)
     savefig(plt, "../figs/n$n-γ$γ-kmax$kmax.pdf")
@@ -76,7 +76,7 @@ end
 kmax = 2000
 for n = [587, 692, 834, 1255, 1869]
     for γ = [0.05, 0.1]
-        test(n, γ, kmax, maxfgcalls=2000)
+        test(n, γ, kmax)
     end
 end
 

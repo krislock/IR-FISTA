@@ -1,6 +1,6 @@
 # Evaluates dual objective function and its gradient
 function dualobj!(ncm, G, H, L, τ;
-                  method::Symbol=:IAPG,
+                  computeV::Bool=false,
                   scaleX::Bool=true)
 
     n = ncm.n
@@ -38,16 +38,16 @@ function dualobj!(ncm, G, H, L, τ;
     τdL = τ/L
     Ldτ = L/τ
 
-    # ∇fY.data .= H2.*(Y .- G)
-    # M.data .= Y .- τdL.*M      # M = Y - (τ/L)*(∇f(Y) + Diag(y))
-    # X .= M
+    # ∇fY = H2.*(Y - G)
+    # M = Y - (τ/L)*(∇f(Y) - Diag(y))
+    # X = M
     @inbounds for j=1:n
         for i=1:j
             ∇fY.data[i,j] = H2.data[i,j]*(Y.data[i,j] - G.data[i,j])
             M.data[i,j] = Y.data[i,j] - τdL*∇fY.data[i,j]
             X.data[i,j] = M.data[i,j]
         end
-        M.data[j,j] -= τdL*y[j]
+        M.data[j,j] += τdL*y[j]
         X.data[j,j] = M.data[j,j]
     end
 
@@ -63,18 +63,13 @@ function dualobj!(ncm, G, H, L, τ;
             end
         end
     end
-    if method==:IR || method==:IER
-        computeV = true
-    else
-        computeV = false
-    end
 
-    # Λ.data  .= Ldτ.*(X .- M)                   # Λ is psd
-    # Γ.data  .= Diagonal(y) .- Λ
-    # Z.data  .= Xnew .- Y
-    # V.data  .= ∇fY .+ Ldτ.*(Xnew .- Y) .+ Γ
-    # R.data  .= H.*(Xnew .- G)
-    # Rd.data .= H2.*(Xnew .- G) .+ Γ
+    # Λ  = Ldτ*(X - M)        # Λ is psd
+    # Γ  = -Diag(y) - Λ        # Γ is an ε-subgradient
+    # Z  = Xnew - Y           # used to compute ||Xnew - Y||
+    # V  = ∇f(Y) + Ldτ*Z + Γ  # used in the IR and IER updates
+    # R  = H.*(Xnew - G)      # used to compute primal objective
+    # Rd = H.*R + Γ           # used to compute dual feasibility
 
     @inbounds for j=1:n
         for i=1:j
@@ -92,32 +87,34 @@ function dualobj!(ncm, G, H, L, τ;
             R.data[i,j]  = H.data[i,j]*(Xnew.data[i,j] - G.data[i,j])
             Rd.data[i,j] = H.data[i,j]*R.data[i,j] + Γ.data[i,j]
         end
-        Γ.data[j,j] += y[j]
+        Γ.data[j,j] -= y[j]
         if computeV
-            V.data[j,j] += y[j]
+            V.data[j,j] -= y[j]
         end
-        Rd.data[j,j] += y[j]
+        Rd.data[j,j] -= y[j]
     end
 
-    # Compute and store the objective function
-    fvals[fgcount] = 0.5*fronorm(R, proj.work)^2
-
-    # Compute and store the optim. cond. residual
+    # Compute primal and dual feasibility
     @inbounds for j=1:n
-        d[j] = 1.0 - Xnew[j,j]
+        d[j] = Xnew.data[j,j] - 1.0
     end
-    rpRef[] = norm(d)/(1 + √n)
+    rpRef[] = norm(d)
     rdRef[] = fronorm(Rd, proj.work)
+
+    fvals[fgcount]    = 0.5*fronorm(R, proj.work)^2
     resvals[fgcount]  = max(rpRef[],rdRef[])
     distvals[fgcount] = fronorm(Z, proj.work)
 
     # Compute the gradient of the dual function
     @inbounds for j=1:n
-        g[j] = 1.0 - X.data[j,j]
+        g[j] = X.data[j,j] - 1.0
     end
 
-    w, inds = proj.w, 1:proj.m[]
-    dualobjval = sum(y) + 0.5*Ldτ*dot(w,inds,w,inds)
+    # Compute the value of the dual function
+    w    = proj.w
+    inds = 1:proj.m[]
+    dualobjval = -sum(y) + 0.5*Ldτ*dot(w,inds,w,inds)
 
     return dualobjval
 end
+

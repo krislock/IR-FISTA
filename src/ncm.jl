@@ -1,3 +1,5 @@
+using Printf
+
 struct NCMresults
     X::Symmetric{Float64,Array{Float64,2}}
     y::Vector{Float64}
@@ -64,7 +66,7 @@ struct NCM
     proj::ProjPSD
     res::NCMresults
 
-    function NCM(n; memlim=10, maxfgcalls=2000)
+    function NCM(n; memlim=10, maxfgcalls=100_000)
         g = zeros(n)
         d = zeros(n)
 
@@ -128,8 +130,8 @@ function (ncm::NCM)(G::Symmetric{Float64,Array{Float64,2}},
                     α::Float64=0.0,
                     σ::Float64=1.0,
                     tol::Float64=1e-2,
-                    kmax::Int64=2000,
-                    maxfgcalls::Int64=2000,
+                    kmax::Int64=100_000,
+                    maxfgcalls::Int64=100_000,
                     printlevel::Int64=0,
                     lbfgsbprintlevel::Int64=-1,
                     exact::Bool=false,
@@ -167,6 +169,7 @@ function (ncm::NCM)(G::Symmetric{Float64,Array{Float64,2}},
 
     Xnew = res.X
     y    = res.y
+    Λ    = res.Λ
 
     fgcountRef = res.fgcountRef
     rpRef      = res.rpRef
@@ -255,8 +258,7 @@ function (ncm::NCM)(G::Symmetric{Float64,Array{Float64,2}},
         fgcount = fgcountRef[]
         innerfgcalls = fgcount - (maxfgcalls - maxinnerfgcalls)
 
-        rp = rpRef[]
-        rd = rdRef[]
+        rp, rd = rpRef[], rdRef[]
         rankX = proj.m[]
 
         if printlevel≥2
@@ -281,12 +283,19 @@ function (ncm::NCM)(G::Symmetric{Float64,Array{Float64,2}},
         t = tnew
     end
 
-    if max(rp, rd) > tol
-        success = false
-        printlevel≥1 && println("Failed to converge after $fgcount function evaluations.")
-    else
-        success = true
-        printlevel≥1 && println("Converged after $fgcount function evaluations.")
+    success = (max(rp,rd) ≤ tol)
+    if printlevel ≥ 1
+        pval = fvals[fgcount]
+        #dval = 0.5*(dot(G, H2.*G) - dot(Xnew, H2.*Xnew)) + sum(y)
+        println(success ? "Success." : "Failed.")
+        @printf("%-20s: %-24d\n",    "Outer iterations",   k)
+        @printf("%-20s: %-24d\n",    "Function evals",     fgcount)
+        @printf("%-20s: %-24.16e\n", "Primal objective",   pval)
+        #@printf("%-20s: %-24.16e\n", "Dual objective",     dval)
+        @printf("%-20s: %-24.6e\n",  "Primal feasibility", rp)
+        @printf("%-20s: %-24.6e\n",  "Dual feasibility",   rd)
+        @printf("%-20s: %-24.6e\n",  "Duality gap",        symdot(Xnew,Λ))
+        @printf("%-20s: %-24d\n",    "rank(X)",            proj.m[])
     end
 
     return success, k

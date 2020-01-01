@@ -8,7 +8,7 @@ include("dualobj.jl")
 function genprob(n, γ;
                  seed=0,
                  memlim=10,
-                 maxfgcalls=2000)
+                 maxfgcalls=100_000)
 
     U, G, H = randncm(n, γ=γ, seed=seed)
     ncm = NCM(n,
@@ -18,7 +18,7 @@ function genprob(n, γ;
     return U, G, H, ncm
 end
 
-function runall(G, H, ncm; maxfgcalls=2000, tol=1e-2, printlevel=0)
+function runall(G, H, ncm; maxfgcalls=100_000, tol=1e-2, printlevel=1)
 
     @time ncm(G, H, method=:IAPG,
               maxfgcalls=maxfgcalls, tol=tol, printlevel=printlevel)
@@ -37,10 +37,10 @@ function runall(G, H, ncm; maxfgcalls=2000, tol=1e-2, printlevel=0)
 end
 
 function tester(n, γ;
-                maxfgcalls=2000,
+                maxfgcalls=100_000,
                 seed=0,
                 tol=1e-2,
-                printlevel=0)
+                printlevel=1)
 
     U, G, H, ncm = genprob(n, γ,
                         seed=seed,
