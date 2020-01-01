@@ -3,7 +3,7 @@ using Plots, LaTeXStrings, Printf
 include("tester.jl")
 
 
-function runtests(n, γ, kmax; maxfgcalls=100_000)
+function runtests(n, γ; maxfgcalls=100_000)
     U, G, H, ncm = genprob(n, γ, maxfgcalls=maxfgcalls)
 
     J = Symmetric(ones(n,n))
@@ -14,7 +14,6 @@ function runtests(n, γ, kmax; maxfgcalls=100_000)
     ncm.Xold .= Xold
     tol = 1e-1
     t1 = @elapsed success, k = ncm(G, H, method=:IAPG,
-                                   kmax=kmax,
                                    tol=tol,
                                    useXold=true,
                                    maxfgcalls=maxfgcalls)
@@ -29,7 +28,6 @@ function runtests(n, γ, kmax; maxfgcalls=100_000)
     ncm.Xold .= Xold
     tol = 1e-1
     t2 = @elapsed success, k = ncm(G, H, method=:IR, τ=0.95,
-                                   kmax=kmax,
                                    tol=tol,
                                    useXold=true,
                                    maxfgcalls=maxfgcalls)
@@ -60,10 +58,10 @@ function makeplot(r1, r2)
 end
 
 
-function test(n, γ, kmax; maxfgcalls=100_000)
-    r1, r2 = runtests(n, γ, kmax, maxfgcalls=maxfgcalls)
+function test(n, γ; maxfgcalls=100_000)
+    r1, r2 = runtests(n, γ, maxfgcalls=maxfgcalls)
     plt = makeplot(r1, r2)
-    savefig(plt, "../figs/n$n-γ$γ-kmax$kmax.pdf")
+    savefig(plt, "../figs/n$n-γ$γ.pdf")
     return nothing
 end
 
@@ -73,10 +71,9 @@ end
 @printf("%4s %6s %8s %6s %8s %10s %10s %10s %8s\n",
         "n", "γ", "method", "k", "fgcalls", "rp", "rd", "fval", "time")
 
-kmax = 2000
 for n = [587, 692, 834, 1255, 1869]
     for γ = [0.05, 0.1]
-        test(n, γ, kmax)
+        test(n, γ)
     end
 end
 
