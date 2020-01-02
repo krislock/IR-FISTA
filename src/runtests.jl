@@ -1,7 +1,13 @@
-using Plots, LaTeXStrings, Printf
+using Plots, LaTeXStrings, Printf, Dates
 
 include("tester.jl")
 
+function time2str(t)
+    ms = Millisecond(1000round(t))
+    dt = convert(DateTime, ms)
+    tt = convert(Time, dt)
+    return string(tt)
+end
 
 function runtests(n, γ; maxfgcalls=100_000)
     U, G, H, ncm = genprob(n, γ, maxfgcalls=maxfgcalls)
@@ -12,7 +18,7 @@ function runtests(n, γ; maxfgcalls=100_000)
     y = copy(ncm.res.y)
 
     ncm.Xold .= Xold
-    tol = 1e-1
+    tol = 1e-2
     t1 = @elapsed success, k = ncm(G, H, method=:IAPG,
                                    tol=tol,
                                    useXold=true,
@@ -22,11 +28,11 @@ function runtests(n, γ; maxfgcalls=100_000)
     rp = ncm.res.rpRef[]
     rd = ncm.res.rdRef[]
     fval = ncm.res.fvals[fgcount]
-    @printf("%4d %6.2f %8s %6d %8d %10.2e %10.2e %10.2e %8.2f\n",
-            n, γ, "IAPG", k, fgcount, rp, rd, fval, t1)
+    @printf("%4d %6.2f %8s %6d %6d %10.2e %10.2e %10.2e %10s\n",
+            n, γ, "IAPG", k, fgcount, rp, rd, fval, time2str(t1))
 
     ncm.Xold .= Xold
-    tol = 1e-1
+    tol = 1e-2
     t2 = @elapsed success, k = ncm(G, H, method=:IR, τ=0.95,
                                    tol=tol,
                                    useXold=true,
@@ -36,8 +42,8 @@ function runtests(n, γ; maxfgcalls=100_000)
     rp = ncm.res.rpRef[]
     rd = ncm.res.rdRef[]
     fval = ncm.res.fvals[fgcount]
-    @printf("%4d %6.2f %8s %6d %8d %10.2e %10.2e %10.2e %8.2f\n",
-            n, γ, "IR", k, fgcount, rp, rd, fval, t2)
+    @printf("%4d %6.2f %8s %6d %6d %10.2e %10.2e %10.2e %10s\n",
+            n, γ, "IR", k, fgcount, rp, rd, fval, time2str(t2))
 
     return r1, r2
 end
@@ -60,18 +66,19 @@ end
 
 function test(n, γ; maxfgcalls=100_000)
     r1, r2 = runtests(n, γ, maxfgcalls=maxfgcalls)
-    plt = makeplot(r1, r2)
-    savefig(plt, "../figs/n$n-γ$γ.pdf")
+    #plt = makeplot(r1, r2)
+    #savefig(plt, "../figs/n$n-γ$γ.pdf")
     return nothing
 end
 
 ################################################################################
 
 
-@printf("%4s %6s %8s %6s %8s %10s %10s %10s %8s\n",
-        "n", "γ", "method", "k", "fgcalls", "rp", "rd", "fval", "time")
+@printf("%4s %6s %8s %6s %6s %10s %10s %10s %10s\n",
+        "n", "γ", "method", "k", "fgs", "rp", "rd", "fval", "time")
 
-for n = [587, 692, 834, 1255, 1869]
+#for n = [587, 692, 834, 1255, 1869]
+for n = 100:100:500
     for γ = [0.05, 0.1]
         test(n, γ)
     end
