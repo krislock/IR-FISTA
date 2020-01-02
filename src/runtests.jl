@@ -18,7 +18,7 @@ function runtests(n, γ; maxfgcalls=100_000)
     y = copy(ncm.res.y)
 
     ncm.Xold .= Xold
-    tol = 1e-2
+    tol = 1e-1
     t1 = @elapsed success, k = ncm(G, H, method=:IAPG,
                                    tol=tol,
                                    useXold=true,
@@ -33,7 +33,7 @@ function runtests(n, γ; maxfgcalls=100_000)
             n, γ, "IAPG", k, fgcount, rp, rd, fval, time2str(t1))
 
     ncm.Xold .= Xold
-    tol = 1e-2
+    tol = 1e-1
     t2 = @elapsed success, k = ncm(G, H, method=:IR, τ=0.95,
                                    tol=tol,
                                    useXold=true,
