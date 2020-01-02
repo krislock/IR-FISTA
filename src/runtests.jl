@@ -13,7 +13,7 @@ function runtests(n, γ; maxfgcalls=100_000)
     U, G, H, ncm = genprob(n, γ, maxfgcalls=maxfgcalls)
 
     J = Symmetric(ones(n,n))
-    ncm(G, J, kmax=3)
+    ncm(G, J, kmax=3, printlevel=0)
     Xold = copy(ncm.Xold)
     y = copy(ncm.res.y)
 
@@ -22,7 +22,8 @@ function runtests(n, γ; maxfgcalls=100_000)
     t1 = @elapsed success, k = ncm(G, H, method=:IAPG,
                                    tol=tol,
                                    useXold=true,
-                                   maxfgcalls=maxfgcalls)
+                                   maxfgcalls=maxfgcalls,
+                                   printlevel=0)
     fgcount = ncm.res.fgcountRef[]
     r1 = ncm.res.resvals[1:fgcount]
     rp = ncm.res.rpRef[]
@@ -36,7 +37,8 @@ function runtests(n, γ; maxfgcalls=100_000)
     t2 = @elapsed success, k = ncm(G, H, method=:IR, τ=0.95,
                                    tol=tol,
                                    useXold=true,
-                                   maxfgcalls=maxfgcalls)
+                                   maxfgcalls=maxfgcalls,
+                                   printlevel=0)
     fgcount = ncm.res.fgcountRef[]
     r2 = ncm.res.resvals[1:fgcount]
     rp = ncm.res.rpRef[]
@@ -66,8 +68,8 @@ end
 
 function test(n, γ; maxfgcalls=100_000)
     r1, r2 = runtests(n, γ, maxfgcalls=maxfgcalls)
-    #plt = makeplot(r1, r2)
-    #savefig(plt, "../figs/n$n-γ$γ.pdf")
+    plt = makeplot(r1, r2)
+    savefig(plt, "../figs/n$n-γ$γ.pdf")
     return nothing
 end
 
@@ -78,8 +80,8 @@ end
         "n", "γ", "method", "k", "fgs", "rp", "rd", "fval", "time")
 
 #for n = [587, 692, 834, 1255, 1869]
-for n = 100:100:500
-    for γ = [0.05, 0.1]
+for n = 500:500:2000
+    for γ = [0.01, 0.05]
         test(n, γ)
     end
 end
