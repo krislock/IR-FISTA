@@ -34,9 +34,10 @@ function randncm(n; seed=0, γ=0.0, p=0.5)
     U = onion(n)
 
     # Random sparse H
-    Htmp = [rand()<p ? 1.0 + rand() : 0.0 for i=1:n, j=1:n]
+    Htmp = [rand()<p ? rand() : 0.0 for i=1:n, j=1:n]
     H = Symmetric(triu(Htmp,1) + I)
 
+    #=
     # Random noise
     # G = U + E./H
     G = copy(U)
@@ -50,13 +51,12 @@ function randncm(n; seed=0, γ=0.0, p=0.5)
             end
         end
     end
+    =#
 
-    #=
     Etmp = 2*rand(n,n) .- 1
     E = Symmetric(triu(Etmp,1) + I)
     Gtmp = (1-γ).*U .+ γ.*E
     G = Symmetric(triu(Gtmp,1) + I)
-    =#
 
     Random.seed!(rng)
 

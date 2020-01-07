@@ -12,13 +12,14 @@ end
 function runtests(n, γ; maxfgcalls=100_000)
     U, G, H, ncm = genprob(n, γ, maxfgcalls=maxfgcalls)
 
+    tol = 1e-6
+
     J = Symmetric(ones(n,n))
-    ncm(G, J, kmax=3, printlevel=0)
+    ncm(G, J, tol=tol, printlevel=0)
     Xold = copy(ncm.Xold)
     y = copy(ncm.res.y)
 
     ncm.Xold .= Xold
-    tol = 1e-1
     t1 = @elapsed success, k = ncm(G, H, method=:IAPG,
                                    tol=tol,
                                    useXold=true,
@@ -33,7 +34,6 @@ function runtests(n, γ; maxfgcalls=100_000)
             n, γ, "IAPG", k, fgcount, rp, rd, fval, time2str(t1))
 
     ncm.Xold .= Xold
-    tol = 1e-1
     t2 = @elapsed success, k = ncm(G, H, method=:IR, τ=0.95,
                                    tol=tol,
                                    useXold=true,
@@ -54,7 +54,7 @@ end
 function makeplot(r1, r2)
 
     plt = plot(yaxis=:log,
-               ylims=[1e-1, 1e+1],
+               #ylims=[1e-1, 1e+1],
                xlabel="function evaluations",
                ylabel=L"\max\{r_p,r_d\}",
                size=(900,600))
@@ -79,8 +79,7 @@ end
 @printf("%4s %6s %8s %6s %6s %10s %10s %10s %10s\n",
         "n", "γ", "method", "k", "fgs", "rp", "rd", "fval", "time")
 
-#for n = [587, 692, 834, 1255, 1869]
-for n = 500:500:2000
+for n = [587, 692, 834, 1255, 1869]
     for γ = [0.01, 0.05]
         test(n, γ)
     end
