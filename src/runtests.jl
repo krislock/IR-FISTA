@@ -1,5 +1,4 @@
 using Plots, LaTeXStrings, Printf, Dates
-using MATLAB
 
 include("tester.jl")
 
@@ -13,19 +12,9 @@ end
 function runtests(n, γ; maxfgcalls=100_000)
     U, G, H, ncm = genprob(n, γ, maxfgcalls=maxfgcalls)
 
-    tol = 1e-1
+    tol = 1e-3
 
-    #=
-    J = Symmetric(ones(n,n))
-    ncm(G, J, tol=tol, printlevel=0)
-    X = copy(ncm.Xold)
-    y = copy(ncm.res.y)
-    =#
-
-    mat"
-    [$X,$y] = CorNewton3($(Array(G)),ones($n,1),1:$n,1:$n,0.0);
-    "
-    X = Symmetric(X)
+    X, y = CorNewton3(G)
 
     ncm.Xold .= X
     @printf("%4d %6.2f %8s ", n, γ, "IAPG")
@@ -64,7 +53,7 @@ end
 function makeplot(r1, r2)
 
     plt = plot(yaxis=:log,
-               #ylims=[1e-1, 1e+1],
+               ylims=[1e-3, 1e+1],
                xlabel="function evaluations",
                ylabel=L"\max\{r_p,r_d\}",
                size=(900,600))

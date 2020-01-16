@@ -1,3 +1,14 @@
+using MATLAB
+
+function CorNewton3(G)
+    @assert issymmetric(G)
+    n = size(G, 1)
+    mat"
+    [$X,$y] = CorNewton3($(Array(G)),ones($n,1),1:$n,1:$n,0.0);
+    "
+    return Symmetric(X), y
+end
+
 function fronorm(A, work)
     lda, n = size(A)
     ccall((:dlansy_64_, "libopenblas64_"), Cdouble,
