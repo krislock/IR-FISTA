@@ -27,36 +27,44 @@ function onion(n; η = 1.0)
     return S
 end
 
-function randncm(n; seed=0, γ=0.0, p=0.5)
+function randncm(n; seed=0, γ=0.0, p=0.5,
+                gaussian_noise=false)
     rng = Random.seed!(seed)
 
     # Random target matrix
     U = onion(n)
 
     # Random sparse H
-    Htmp = [rand()<p ? rand() : 0.0 for i=1:n, j=1:n]
+    if gaussian_noise
+        # Hij ∈ [1, 10] for Hij ≠ 0
+        Htmp = [rand()<p ? 1.0 + 9.0*rand() : 0.0
+                for i=1:n, j=1:n]
+    else
+        Htmp = [rand()<p ? rand() : 0.0
+                for i=1:n, j=1:n]
+    end
     H = Symmetric(triu(Htmp,1) + I)
 
-    #=
     # Random noise
-    # G = U + E./H
-    G = copy(U)
-    for j=1:n
-        for i=1:j-1
-            Hij = H.data[i,j]
-            if Hij > 0.0
-                G.data[i,j] += γ*randn()/Hij
-            else
-                G.data[i,j] = 0.0
+    if gaussian_noise
+        # G = U + E./H
+        G = copy(U)
+        for j=1:n
+            for i=1:j-1
+                Hij = H.data[i,j]
+                if Hij > 0.0
+                    G.data[i,j] += γ*randn()/Hij
+                else
+                    G.data[i,j] = 0.0
+                end
             end
         end
+    else
+        Etmp = 2*rand(n,n) .- 1
+        E = Symmetric(triu(Etmp,1) + I)
+        Gtmp = (1-γ).*U .+ γ.*E
+        G = Symmetric(triu(Gtmp,1) + I)
     end
-    =#
-
-    Etmp = 2*rand(n,n) .- 1
-    E = Symmetric(triu(Etmp,1) + I)
-    Gtmp = (1-γ).*U .+ γ.*E
-    G = Symmetric(triu(Gtmp,1) + I)
 
     Random.seed!(rng)
 
