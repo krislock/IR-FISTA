@@ -18,19 +18,24 @@ function genprob(n, γ;
     return U, G, H, ncm
 end
 
-function runall(G, H, ncm; maxfgcalls=100_000, tol=1e-2, printlevel=1)
+function runall(G, H, ncm;
+                maxfgcalls=100_000, tol=1e-2,
+                printlevel=1)
 
     @time ncm(G, H, method=:IAPG,
-              maxfgcalls=maxfgcalls, tol=tol, printlevel=printlevel)
+              maxfgcalls=maxfgcalls, tol=tol,
+              printlevel=printlevel)
     @time ncm(G, H, method=:IR, τ=0.95,
-              maxfgcalls=maxfgcalls, tol=tol, printlevel=printlevel)
+              maxfgcalls=maxfgcalls, tol=tol,
+              printlevel=printlevel)
     #=
     H2 = ncm.H2
     H2.data .= H.^2
     L = fronorm(H2, ncm.proj.work)
     α = round(1/L, RoundUp, digits=2)
     @time ncm(G, H, method=:IER, α=α,
-              maxfgcalls=maxfgcalls, tol=tol, printlevel=printlevel)
+              maxfgcalls=maxfgcalls, tol=tol,
+              printlevel=printlevel)
     =#
 
     return nothing

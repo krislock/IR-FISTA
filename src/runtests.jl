@@ -9,10 +9,8 @@ function time2str(t)
     return string(tt)
 end
 
-function runtests(n, γ; maxfgcalls=100_000)
+function runtests(n, γ; tol=1e-1, maxfgcalls=100_000)
     U, G, H, ncm = genprob(n, γ, maxfgcalls=maxfgcalls)
-
-    tol = 1e-3
 
     X, y = CorNewton3(G)
 
@@ -53,7 +51,7 @@ end
 function makeplot(r1, r2)
 
     plt = plot(yaxis=:log,
-               ylims=[1e-3, 1e+1],
+               #ylims=[1e-1, 1e+2],
                xlabel="function evaluations",
                ylabel=L"\max\{r_p,r_d\}",
                size=(900,600))
@@ -65,22 +63,22 @@ function makeplot(r1, r2)
 end
 
 
-function test(n, γ; maxfgcalls=100_000)
-    r1, r2 = runtests(n, γ, maxfgcalls=maxfgcalls)
+function test(n, γ; tol=1e-1, maxfgcalls=100_000)
+    r1, r2 = runtests(n, γ, tol=tol, maxfgcalls=maxfgcalls)
     plt = makeplot(r1, r2)
     savefig(plt, "../figs/n$n-γ$γ.pdf")
     return nothing
 end
 
-################################################################################
-
+############################################################
 
 @printf("%4s %6s %8s %6s %6s %10s %10s %10s %10s\n",
-        "n", "γ", "method", "k", "fgs", "rp", "rd", "fval", "time")
+        "n", "γ", "method", "k", "fgs",
+        "rp", "rd", "fval", "time")
 
-for n = [587, 692, 834, 1255, 1869]
-    for γ = [0.01, 0.05]
-        test(n, γ)
+for n = 500:500:2000
+    for γ = [0.01, 0.05, 0.1, 0.5]
+        test(n, γ, tol=1e-1)
     end
 end
 
