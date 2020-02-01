@@ -1,17 +1,29 @@
 using LinearAlgebra
 
+function dsyevd!(jobz, uplo, n, A, lda,
+        w, work, lwork, iwork, liwork, info)
+    ccall((:dsyevd_64_, "libopenblas64_"), Cvoid,
+        (Ref{UInt8}, Ref{UInt8}, Ref{Int}, Ref{Float64}, Ref{Int},
+         Ref{Float64}, Ref{Float64}, Ref{Int}, Ref{Int}, Ref{Int},
+         Ref{Int}),
+        jobz, uplo, n, A, lda,
+        w, work, lwork, iwork, liwork, info)
+end
+
+function dsyrk!(uplo, trans, n, k,
+        alpha, A, lda, beta, C, ldc)
+    ccall((:dsyrk_64_, "libopenblas64_"), Cvoid,
+        (Ref{UInt8}, Ref{UInt8}, Ref{Int}, Ref{Int},
+            Ref{Float64}, Ref{Float64}, Ref{Int},
+            Ref{Float64}, Ref{Float64}, Ref{Int}),
+        uplo, trans, n, k,
+        alpha, A, lda, beta, C, ldc)
+end
+
 struct ProjPSD
     nmax::Int
     jobz::Char
-    range::Char
-    il::Int
-    iu::Int
-    abstol::Float64
-    m::Base.RefValue{Int}
     w::Vector{Float64}
-    Z::Matrix{Float64}
-    ldz::Int
-    isuppz::Vector{Int}
     work::Vector{Float64}
     lwork::Int
     iwork::Vector{Int}
@@ -23,107 +35,70 @@ struct ProjPSD
         A = Symmetric(zeros(1,1))
 
         jobz = 'V'
-        range = 'V'
         lda = n
-        vl = 0.0
-        vu = Inf
-        il = 0
-        iu = 0
-        abstol = -1.0
-        m = Ref{Int}(0)
         w = zeros(n)
-        Z = zeros(n, n)
-        ldz = n
-        isuppz = zeros(Int, 2n)
-        work   = zeros(1)
-        iwork  = zeros(Int, 1)
         info   = Ref{Int}(0)
 
         # Perform an optimal workspace query
-        ccall((:dsyevr_64_, "libopenblas64_"), Cvoid,
-            (Ref{UInt8}, Ref{UInt8}, Ref{UInt8}, Ref{Int},
-                Ptr{Float64}, Ref{Int}, Ref{Float64}, Ref{Float64},
-                Ref{Int}, Ref{Int}, Ref{Float64}, Ptr{Int},
-                Ptr{Float64}, Ptr{Float64}, Ref{Int}, Ptr{Int},
-                Ptr{Float64}, Ref{Int}, Ptr{Int}, Ref{Int},
-                Ptr{Int}),
-            jobz, range, A.uplo, n,
-            A.data, lda, vl, vu,
-            il, iu, abstol, m,
-            w, Z, ldz, isuppz,
-            work, -1, iwork, -1,
-            info)
-
+        lwork = -1
+        liwork = -1
+        work   = zeros(1)
+        iwork  = zeros(Int, 1)
+        dsyevd!(jobz, A.uplo, n, A.data, lda, w,
+                work, lwork, iwork, liwork, info)
         lwork = Int(real(work[1]))
         liwork = iwork[1]
-
         resize!(work, lwork)
         resize!(iwork, liwork)
 
-        new(nmax, jobz, range, il, iu, abstol, m, w, Z, ldz,
-            isuppz, work, lwork, iwork, liwork, info)
+        new(nmax, jobz, w, work, lwork, iwork, liwork, info)
     end
 end
 
 
-function (obj::ProjPSD)(A::Symmetric)
+function (obj::ProjPSD)(A::Symmetric, negAminus::Symmetric)
     lda, n = size(A)
 
     @assert lda == n
     @assert n <= obj.nmax
 
-    vl = 0.0
-    vu = Inf  # Tests show that vu = Inf is faster than
-              # vu = min(norminf, normfro)
-    abstol = -1.0
+    dsyevd!(obj.jobz, A.uplo, n, A.data, lda, obj.w,
+            obj.work, obj.lwork, obj.iwork, obj.liwork, obj.info)
 
-    #=
-    vl = 1e-8
-    norminf = ccall((:dlansy_64_, "libopenblas64_"), Cdouble,
-        (Ref{UInt8}, Ref{UInt8}, Ref{Int}, Ptr{Float64}, Ref{Int},
-        Ptr{Float64}), 'I', A.uplo, n, A.data, lda, obj.work)
-    normfro = ccall((:dlansy_64_, "libopenblas64_"), Cdouble,
-        (Ref{UInt8}, Ref{UInt8}, Ref{Int}, Ptr{Float64}, Ref{Int},
-        Ptr{Float64}), 'F', A.uplo, n, A.data, lda, obj.work)
-    vu = min(norminf, normfro)
-    if vu < vl
-        vu = 2*vl
-    end
-    abstol = 1e-8
-    =#
+    λ, V = obj.w, A.data
 
-    ccall((:dsyevr_64_, "libopenblas64_"), Cvoid,
-    (Ref{UInt8}, Ref{UInt8}, Ref{UInt8}, Ref{Int},
-        Ptr{Float64}, Ref{Int}, Ref{Float64}, Ref{Float64},
-        Ref{Int}, Ref{Int}, Ref{Float64}, Ptr{Int},
-        Ptr{Float64}, Ptr{Float64}, Ref{Int}, Ptr{Int},
-        Ptr{Float64}, Ref{Int}, Ptr{Int}, Ref{Int},
-        Ptr{Int}),
-    obj.jobz, obj.range, A.uplo, n,
-    A.data, lda, vl, vu,
-    obj.il, obj.iu, abstol, obj.m,
-    obj.w, obj.Z, obj.ldz, obj.isuppz,
-    obj.work, obj.lwork, obj.iwork, obj.liwork,
-    obj.info)
-
-    k = obj.m[]
-    λ, V = obj.w, obj.Z
-    ldv = obj.ldz
-
-    # V = V*diagm(sqrt.(λ))
-    for j = 1:k
-        tmp = sqrt(λ[j])
+    # V = V*Diagonal(sqrt.(abs.(λ)))
+    k = 0
+    @inbounds for j = 1:n
+        tmp = λ[j]
+        if tmp < 0.0
+            k = j
+            tmp = -tmp
+        end
+        tmp = sqrt(tmp)
         for i = 1:n
             V[i,j] *= tmp
         end
     end
 
     # A = V*V'
-    ccall((:dsyrk_64_, "libopenblas64_"), Cvoid,
-        (Ref{UInt8}, Ref{UInt8}, Ref{Int}, Ref{Int}, Ref{Float64},
-            Ptr{Float64}, Ref{Int}, Ref{Float64}, Ptr{Float64}, Ref{Int}),
-        A.uplo, 'N', n, k, 1.0, V, ldv, 0.0, A.data, lda)
+    # A := alpha*V*V**T + beta*A, alpha = 1.0, beta = 0.0
+    if k > 0
+        dsyrk!(negAminus.uplo, 'N', n, k, 1.0, V, n, 0.0,
+               negAminus.data, n)
+    else
+        negAminus.data .= 0.0
+    end
+
+    if k < n
+        dsyrk!(A.uplo, 'N', n, n-k, 1.0, view(V,:,k+1:n), n, 0.0,
+               A.data, n)
+    else
+        A.data .= 0.0
+    end
 
     return A
 end
+
+############################################################
 
