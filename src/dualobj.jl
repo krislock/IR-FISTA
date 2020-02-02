@@ -45,13 +45,11 @@ function dualobj!(ncm, G, H, L, τ;
         for i=1:j
             ∇fY.data[i,j] = H2.data[i,j]*(Y.data[i,j] - G.data[i,j])
             M.data[i,j] = Y.data[i,j] - τdL*∇fY.data[i,j]
-            X.data[i,j] = M.data[i,j]
         end
         M.data[j,j] += τdL*y[j]
-        X.data[j,j] = M.data[j,j]
     end
 
-    proj(X, Λ)
+    proj(M, X, Λ)
 
     if scaleX
         # Ensure that diag(Xnew).==1 exactly
@@ -112,8 +110,8 @@ function dualobj!(ncm, G, H, L, τ;
     end
 
     # Compute the value of the dual function
-    λ = proj.w
     #dualobjval = -sum(y) + 0.5*Ldτ*dot(w,inds,w,inds)
+    λ = proj.w
     dualobjval = 0.0
     for j = 1:n
         tmp = λ[j]
@@ -126,5 +124,4 @@ function dualobj!(ncm, G, H, L, τ;
 
     return dualobjval
 end
-
 

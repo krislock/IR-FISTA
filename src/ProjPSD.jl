@@ -1,15 +1,30 @@
 using LinearAlgebra
 
+wait_for_key(prompt) = (print(stdout, prompt); read(stdin, 1); nothing)
+
 function dsyevd!(jobz, uplo, n, A, lda,
         w, work, lwork, iwork, liwork, info)
     ccall((:dsyevd_64_, "libopenblas64_"), Cvoid,
-        (Ref{UInt8}, Ref{UInt8}, Ref{Int}, Ref{Float64}, Ref{Int},
-         Ref{Float64}, Ref{Float64}, Ref{Int}, Ref{Int}, Ref{Int},
-         Ref{Int}),
+        (Ref{UInt8}, Ref{UInt8}, Ref{Int}, Ref{Float64},
+         Ref{Int}, Ref{Float64}, Ref{Float64}, Ref{Int},
+         Ref{Int}, Ref{Int}, Ref{Int}),
         jobz, uplo, n, A, lda,
         w, work, lwork, iwork, liwork, info)
 end
 
+#=
+ DSYRK  performs one of the symmetric rank k operations
+
+    C := alpha*A*A**T + beta*C,
+
+ or
+
+    C := alpha*A**T*A + beta*C,
+
+ where  alpha and beta  are scalars, C is an  n by n  
+ symmetric matrix and  A  is an  n by k  matrix in the 
+ first case and a  k by n  matrix in the second case.
+=#
 function dsyrk!(uplo, trans, n, k,
         alpha, A, lda, beta, C, ldc)
     ccall((:dsyrk_64_, "libopenblas64_"), Cvoid,
@@ -56,14 +71,14 @@ struct ProjPSD
 end
 
 
-function (obj::ProjPSD)(A::Symmetric, negAminus::Symmetric)
+function (obj::ProjPSD)(A::Symmetric, Aplus::Symmetric, Aminus::Symmetric)
     lda, n = size(A)
 
-    @assert lda == n
     @assert n <= obj.nmax
 
     dsyevd!(obj.jobz, A.uplo, n, A.data, lda, obj.w,
-            obj.work, obj.lwork, obj.iwork, obj.liwork, obj.info)
+            obj.work, obj.lwork, obj.iwork, obj.liwork,
+            obj.info)
 
     λ, V = obj.w, A.data
 
@@ -73,7 +88,7 @@ function (obj::ProjPSD)(A::Symmetric, negAminus::Symmetric)
         tmp = λ[j]
         if tmp < 0.0
             k = j
-            tmp = -tmp
+            tmp *= -1.0
         end
         tmp = sqrt(tmp)
         for i = 1:n
@@ -84,20 +99,20 @@ function (obj::ProjPSD)(A::Symmetric, negAminus::Symmetric)
     # A = V*V'
     # A := alpha*V*V**T + beta*A, alpha = 1.0, beta = 0.0
     if k > 0
-        dsyrk!(negAminus.uplo, 'N', n, k, 1.0, V, n, 0.0,
-               negAminus.data, n)
+        dsyrk!(Aminus.uplo, 'N', n, k, 1.0, V, n, 0.0,
+               Aminus.data, n)
     else
-        negAminus.data .= 0.0
+        Aminus.data .= 0.0
     end
 
     if k < n
-        dsyrk!(A.uplo, 'N', n, n-k, 1.0, view(V,:,k+1:n), n, 0.0,
-               A.data, n)
+        dsyrk!(Aplus.uplo, 'N', n, n-k, 1.0, view(V,:,k+1:n), n, 0.0,
+               Aplus.data, n)
     else
-        A.data .= 0.0
+        Aplus.data .= 0.0
     end
 
-    return A
+    return nothing
 end
 
 ############################################################
