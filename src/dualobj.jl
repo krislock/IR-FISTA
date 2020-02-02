@@ -112,10 +112,19 @@ function dualobj!(ncm, G, H, L, τ;
     end
 
     # Compute the value of the dual function
-    w    = proj.w
-    inds = findfirst(w.>0.0):n
-    dualobjval = -sum(y) + 0.5*Ldτ*dot(w,inds,w,inds)
+    λ = proj.w
+    #dualobjval = -sum(y) + 0.5*Ldτ*dot(w,inds,w,inds)
+    dualobjval = 0.0
+    for j = 1:n
+        tmp = λ[j]
+        if tmp > 0.0
+            dualobjval += tmp^2
+        end
+    end
+    dualobjval *= 0.5*Ldτ
+    dualobjval -= sum(y)
 
     return dualobjval
 end
+
 
