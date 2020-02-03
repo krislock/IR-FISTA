@@ -1,6 +1,10 @@
 using LinearAlgebra
 
-wait_for_key(prompt) = (print(stdout, prompt); read(stdin, 1); nothing)
+function wait_for_key(prompt)
+    print(stdout, prompt)
+    read(stdin, 1)
+    return nothing
+end
 
 function dsyevd!(jobz, uplo, n, A, lda,
         w, work, lwork, iwork, liwork, info)
@@ -10,6 +14,7 @@ function dsyevd!(jobz, uplo, n, A, lda,
          Ref{Int}, Ref{Int}, Ref{Int}),
         jobz, uplo, n, A, lda,
         w, work, lwork, iwork, liwork, info)
+    return nothing
 end
 
 #=
@@ -33,6 +38,7 @@ function dsyrk!(uplo, trans, n, k,
             Ref{Float64}, Ref{Float64}, Ref{Int}),
         uplo, trans, n, k,
         alpha, A, lda, beta, C, ldc)
+    return nothing
 end
 
 struct ProjPSD
@@ -71,7 +77,8 @@ struct ProjPSD
 end
 
 
-function (obj::ProjPSD)(A::Symmetric, Aplus::Symmetric, Aminus::Symmetric)
+function (obj::ProjPSD)(A::Symmetric,
+                        Aplus::Symmetric, Aminus::Symmetric)
     lda, n = size(A)
 
     @assert n <= obj.nmax
@@ -106,7 +113,9 @@ function (obj::ProjPSD)(A::Symmetric, Aplus::Symmetric, Aminus::Symmetric)
     end
 
     if k < n
-        dsyrk!(Aplus.uplo, 'N', n, n-k, 1.0, view(V,:,k+1:n), n, 0.0,
+        dsyrk!(Aplus.uplo, 'N', n, n-k, 1.0, 
+               pointer(V, n*k+1),
+               n, 0.0,
                Aplus.data, n)
     else
         Aplus.data .= 0.0

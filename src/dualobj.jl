@@ -110,10 +110,9 @@ function dualobj!(ncm, G, H, L, τ;
     end
 
     # Compute the value of the dual function
-    #dualobjval = -sum(y) + 0.5*Ldτ*dot(w,inds,w,inds)
     λ = proj.w
     dualobjval = 0.0
-    for j = 1:n
+    @inbounds for j = 1:n
         tmp = λ[j]
         if tmp > 0.0
             dualobjval += tmp^2
