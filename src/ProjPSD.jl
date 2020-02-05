@@ -14,6 +14,9 @@ function dsyevd!(jobz, uplo, n, A, lda,
          Ref{Int}, Ref{Int}, Ref{Int}),
         jobz, uplo, n, A, lda,
         w, work, lwork, iwork, liwork, info)
+    if info[] != 0
+        @warn("dsyevd failed: info = $(info[])")
+    end
     return nothing
 end
 
