@@ -286,17 +286,17 @@ function (ncm::NCM)(G::Symmetric{Float64,Array{Float64,2}},
     success = (max(rp,rd) ≤ tol)
     if printlevel ≥ 1
         resnorm = fronorm(R, proj.work)
-        pval = fvals[fgcount]
+        #pval = fvals[fgcount]
         #dval = 0.5*(dot(G, H2.*G) - dot(Xnew, H2.*Xnew)) + sum(y)
         println(success ? "Success." : "Failed.")
         @printf("%-20s: %-24d\n",    "Outer iterations",   k)
         @printf("%-20s: %-24d\n",    "Function evals",     fgcount)
         @printf("%-20s: %-24.16e\n", "Final ||H∘(X-G)||",  resnorm)
-        @printf("%-20s: %-24.16e\n", "Primal objective",   pval)
+        #@printf("%-20s: %-24.16e\n", "Primal objective",   pval)
         #@printf("%-20s: %-24.16e\n", "Dual objective",     dval)
         @printf("%-20s: %-24.6e\n",  "Primal feasibility", rp)
         @printf("%-20s: %-24.6e\n",  "Dual feasibility",   rd)
-        @printf("%-20s: %-24.6e\n",  "Duality gap",        symdot(Xnew,Λ))
+        @printf("%-20s: %-24.6e\n",  "Complementarity",    symdot(Xnew,Λ))
         #@printf("%-20s: %-24d\n",    "rank(X)",            proj.m[])
     end
 
