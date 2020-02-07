@@ -9,44 +9,50 @@ function time2str(t)
     return string(tt)
 end
 
-function runtests(n, γ; tol=1e-1, maxfgcalls=100_000)
+function runtests(n, γ;
+                  tol=1e-1,
+                  maxfgcalls=100_000,
+                  useXold=true)
+
     U, G, H, ncm = genprob(n, γ, maxfgcalls=maxfgcalls)
 
-    X, y = CorNewton3(G)
+    if useXold
+        X, y = CorNewton3(G)
+        ncm.Xold .= X
+    end
 
-    ncm.Xold .= X
     @printf("%4d %6.2f %8s ", n, γ, "IAPG")
     t1 = @elapsed success, k = ncm(G, H, method=:IAPG,
                                    tol=tol,
-                                   useXold=true,
+                                   useXold=useXold,
                                    maxfgcalls=maxfgcalls,
                                    printlevel=0)
     fgcount = ncm.res.fgcountRef[]
     r1 = ncm.res.resvals[1:fgcount]
     rp = ncm.res.rpRef[]
     rd = ncm.res.rdRef[]
-    fval = ncm.res.fvals[fgcount]
-    @printf("%6d %6d %10.2e %10.2e %10.2e %10s\n",
-            k, fgcount, rp, rd, fval, time2str(t1))
+    @printf("%6d %6d %10.2e %10.2e %10s\n",
+            k, fgcount, rp, rd, time2str(t1))
 
-    ncm.Xold .= X
+    if useXold
+        ncm.Xold .= X
+    end
+
     @printf("%4d %6.2f %8s ", n, γ, "IR")
     t2 = @elapsed success, k = ncm(G, H, method=:IR, τ=0.95,
                                    tol=tol,
-                                   useXold=true,
+                                   useXold=useXold,
                                    maxfgcalls=maxfgcalls,
                                    printlevel=0)
     fgcount = ncm.res.fgcountRef[]
     r2 = ncm.res.resvals[1:fgcount]
     rp = ncm.res.rpRef[]
     rd = ncm.res.rdRef[]
-    fval = ncm.res.fvals[fgcount]
-    @printf("%6d %6d %10.2e %10.2e %10.2e %10s\n",
-            k, fgcount, rp, rd, fval, time2str(t2))
+    @printf("%6d %6d %10.2e %10.2e %10s\n",
+            k, fgcount, rp, rd, time2str(t2))
 
     return r1, r2
 end
-
 
 function makeplot(r1, r2)
 
@@ -62,23 +68,22 @@ function makeplot(r1, r2)
     return plt
 end
 
-
 function test(n, γ; tol=1e-1, maxfgcalls=100_000)
     r1, r2 = runtests(n, γ, tol=tol, maxfgcalls=maxfgcalls)
     plt = makeplot(r1, r2)
-    savefig(plt, "../figs/n$n-γ$γ.pdf")
+    filename = @sprintf("n%d-γ%.2f.pdf", n, γ)
+    savefig(plt, "../figs/$filename")
     return nothing
 end
 
 ############################################################
 
-@printf("%4s %6s %8s %6s %6s %10s %10s %10s %10s\n",
-        "n", "γ", "method", "k", "fgs",
-        "rp", "rd", "fval", "time")
+@printf("%4s %6s %8s %6s %6s %10s %10s %10s\n",
+        "n", "γ", "method", "k", "fgs", "rp", "rd", "time")
 
-for n = 500:500:2000
-    for γ = [0.01, 0.05, 0.1, 0.5]
-        test(n, γ, tol=1e-1)
+for n = 600:500:1500
+    for γ = 0.01:0.01:0.1
+        test(n, γ)
     end
 end
 

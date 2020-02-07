@@ -44,7 +44,7 @@ end
 function tester(n, γ;
                 maxfgcalls=100_000,
                 seed=0,
-                tol=1e-2,
+                tol=1e-1,
                 printlevel=1)
 
     U, G, H, ncm = genprob(n, γ,

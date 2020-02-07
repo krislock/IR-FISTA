@@ -260,14 +260,13 @@ function (ncm::NCM)(G::Symmetric{Float64,Array{Float64,2}},
         innerfgcalls = fgcount - (maxfgcalls - maxinnerfgcalls)
 
         rp, rd = rpRef[], rdRef[]
-        rankX = proj.m[]
 
         if printlevel≥2
             mod(k, 20)==1 &&
-            @printf("%4s %8s %10s %10s %10s %10s %10s %6s\n",
-                    "k", "fgcalls", "||g||", "gtol", "f(X)", "rp", "rd", "rank")
-            @printf("%4d %8d %10.2e %10.2e %10.2e %10.2e %10.2e %6d\n",
-                    k, innerfgcalls, norm(g), gtol, fvals[fgcount], rp, rd, rankX)
+            @printf("%4s %8s %10s %10s %10s %10s %10s\n",
+                    "k", "fgcalls", "||g||", "gtol", "f(X)", "rp", "rd")
+            @printf("%4d %8d %10.2e %10.2e %10.2e %10.2e %10.2e\n",
+                    k, innerfgcalls, norm(g), gtol, fvals[fgcount], rp, rd)
         end
 
         # Update
@@ -287,18 +286,18 @@ function (ncm::NCM)(G::Symmetric{Float64,Array{Float64,2}},
     success = (max(rp,rd) ≤ tol)
     if printlevel ≥ 1
         resnorm = fronorm(R, proj.work)
-        pval = fvals[fgcount]
+        #pval = fvals[fgcount]
         #dval = 0.5*(dot(G, H2.*G) - dot(Xnew, H2.*Xnew)) + sum(y)
         println(success ? "Success." : "Failed.")
         @printf("%-20s: %-24d\n",    "Outer iterations",   k)
         @printf("%-20s: %-24d\n",    "Function evals",     fgcount)
         @printf("%-20s: %-24.16e\n", "Final ||H∘(X-G)||",  resnorm)
-        @printf("%-20s: %-24.16e\n", "Primal objective",   pval)
+        #@printf("%-20s: %-24.16e\n", "Primal objective",   pval)
         #@printf("%-20s: %-24.16e\n", "Dual objective",     dval)
         @printf("%-20s: %-24.6e\n",  "Primal feasibility", rp)
         @printf("%-20s: %-24.6e\n",  "Dual feasibility",   rd)
-        @printf("%-20s: %-24.6e\n",  "Duality gap",        symdot(Xnew,Λ))
-        @printf("%-20s: %-24d\n",    "rank(X)",            proj.m[])
+        @printf("%-20s: %-24.6e\n",  "Complementarity",    symdot(Xnew,Λ))
+        #@printf("%-20s: %-24d\n",    "rank(X)",            proj.m[])
     end
 
     return success, k

@@ -45,13 +45,11 @@ function dualobj!(ncm, G, H, L, τ;
         for i=1:j
             ∇fY.data[i,j] = H2.data[i,j]*(Y.data[i,j] - G.data[i,j])
             M.data[i,j] = Y.data[i,j] - τdL*∇fY.data[i,j]
-            X.data[i,j] = M.data[i,j]
         end
         M.data[j,j] += τdL*y[j]
-        X.data[j,j] = M.data[j,j]
     end
 
-    proj(X)
+    proj(M, X, Λ)
 
     if scaleX
         # Ensure that diag(Xnew).==1 exactly
@@ -65,7 +63,7 @@ function dualobj!(ncm, G, H, L, τ;
     end
 
     # Λ  = Ldτ*(X - M)        # Λ is psd
-    # Γ  = -Diag(y) - Λ        # Γ is an ε-subgradient
+    # Γ  = -Diag(y) - Λ       # Γ is an ε-subgradient
     # Z  = Xnew - Y           # used to compute ||Xnew - Y||
     # V  = ∇f(Y) + Ldτ*Z + Γ  # used in the IR and IER updates
     # R  = H.*(Xnew - G)      # used to compute primal objective
@@ -78,7 +76,8 @@ function dualobj!(ncm, G, H, L, τ;
             else
                 Xnew.data[i,j] = X.data[i,j]
             end
-            Λ.data[i,j] = Ldτ*(X.data[i,j] - M.data[i,j])
+            #Λ.data[i,j] = Ldτ*(X.data[i,j] - M.data[i,j])
+            Λ.data[i,j] *= Ldτ
             Γ.data[i,j] = -Λ.data[i,j]
             Z.data[i,j] = Xnew.data[i,j] - Y.data[i,j]
             if computeV
@@ -111,9 +110,16 @@ function dualobj!(ncm, G, H, L, τ;
     end
 
     # Compute the value of the dual function
-    w    = proj.w
-    inds = 1:proj.m[]
-    dualobjval = -sum(y) + 0.5*Ldτ*dot(w,inds,w,inds)
+    λ = proj.w
+    dualobjval = 0.0
+    @inbounds for j = 1:n
+        tmp = λ[j]
+        if tmp > 0.0
+            dualobjval += tmp^2
+        end
+    end
+    dualobjval *= 0.5*Ldτ
+    dualobjval -= sum(y)
 
     return dualobjval
 end
