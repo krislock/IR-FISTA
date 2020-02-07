@@ -19,7 +19,7 @@ function genprob(n, γ;
 end
 
 function runall(G, H, ncm;
-                maxfgcalls=100_000, tol=1e-2,
+                maxfgcalls=100_000, tol=1e-1,
                 printlevel=1)
 
     @time ncm(G, H, method=:IAPG,

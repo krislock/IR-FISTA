@@ -57,7 +57,7 @@ end
 function makeplot(r1, r2)
 
     plt = plot(yaxis=:log,
-               #ylims=[1e-1, 1e+2],
+               ylims=[1e-2, 1e+1],
                xlabel="function evaluations",
                ylabel=L"\max\{r_p,r_d\}",
                size=(900,600))
@@ -80,10 +80,9 @@ end
 
 @printf("%4s %6s %8s %6s %6s %10s %10s %10s\n",
         "n", "γ", "method", "k", "fgs", "rp", "rd", "time")
-
-for n = 600:500:1500
-    for γ = 0.01:0.01:0.1
-        test(n, γ)
+for n = 100:100:1000
+    for γ = 0.1:0.1:1.0
+        test(n, γ, tol=1e-2)
     end
 end
 
