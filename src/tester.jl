@@ -7,10 +7,12 @@ include("dualobj.jl")
 
 function genprob(n, γ;
                  seed=0,
+                 gaussian_noise=false,
                  memlim=10,
                  maxfgcalls=100_000)
 
-    U, G, H = randncm(n, γ=γ, seed=seed)
+    U, G, H = randncm(n, γ=γ, seed=seed,
+                      gaussian_noise=gaussian_noise)
     ncm = NCM(n,
               memlim=memlim,
               maxfgcalls=maxfgcalls)
@@ -44,11 +46,13 @@ end
 function tester(n, γ;
                 maxfgcalls=100_000,
                 seed=0,
+                gaussian_noise=false,
                 tol=1e-1,
                 printlevel=1)
 
     U, G, H, ncm = genprob(n, γ,
                         seed=seed,
+                        gaussian_noise=gaussian_noise,
                         maxfgcalls=maxfgcalls)
     runall(G, H, ncm,
            maxfgcalls=maxfgcalls,

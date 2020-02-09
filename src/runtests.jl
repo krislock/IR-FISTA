@@ -10,11 +10,14 @@ function time2str(t)
 end
 
 function runtests(n, γ;
+                  gaussian_noise=false,
                   tol=1e-1,
                   maxfgcalls=100_000,
                   useXold=true)
 
-    U, G, H, ncm = genprob(n, γ, maxfgcalls=maxfgcalls)
+    U, G, H, ncm = genprob(n, γ,
+                           gaussian_noise=gaussian_noise,
+                           maxfgcalls=maxfgcalls)
 
     if useXold
         X, y = CorNewton3(G)
@@ -57,7 +60,7 @@ end
 function makeplot(r1, r2)
 
     plt = plot(yaxis=:log,
-               ylims=[1e-2, 1e+1],
+               ylims=[1e-1, 1e+2],
                xlabel="function evaluations",
                ylabel=L"\max\{r_p,r_d\}",
                size=(900,600))
@@ -68,8 +71,14 @@ function makeplot(r1, r2)
     return plt
 end
 
-function test(n, γ; tol=1e-1, maxfgcalls=100_000)
-    r1, r2 = runtests(n, γ, tol=tol, maxfgcalls=maxfgcalls)
+function test(n, γ;
+              gaussian_noise=false,
+              tol=1e-1,
+              maxfgcalls=100_000)
+    r1, r2 = runtests(n, γ,
+                      gaussian_noise=gaussian_noise,
+                      tol=tol,
+                      maxfgcalls=maxfgcalls)
     plt = makeplot(r1, r2)
     filename = @sprintf("n%d-γ%.2f.pdf", n, γ)
     savefig(plt, "../figs/$filename")
@@ -82,7 +91,7 @@ end
         "n", "γ", "method", "k", "fgs", "rp", "rd", "time")
 for n = 100:100:1000
     for γ = 0.1:0.1:1.0
-        test(n, γ, tol=1e-2)
+        test(n, γ, tol=1e-1)
     end
 end
 
