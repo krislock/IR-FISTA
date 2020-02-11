@@ -226,15 +226,16 @@ function (ncm::NCM)(G::Symmetric{Float64,Array{Float64,2}},
 
         k += 1
 
-        if method==:IER
+        if method==:IER || method==:ER
             tnew = t + (λ + √(λ^2 + 4λ*t))/2
             Y.data .= (t/tnew).*Xnew.data .+ ((tnew - t)/tnew).*Xold.data
         else
             tnew = (1 + √(1 + 4t^2))/2
         end
 
-        if method==:IAPG
-            gtol = (1 + √n)*min(1/tnew^3.1, 0.2*rd)
+        if method==:IAPG || method==:ER
+            #gtol = (1 + √n)*min(1/tnew^3.1, 0.2*rd)
+            gtol = 1/tnew^2
         end
 
         if exact
