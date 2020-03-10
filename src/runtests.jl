@@ -77,11 +77,13 @@ end
 function test(n, γ;
               gaussian_noise=false,
               tol=1e-1,
-              maxfgcalls=100_000)
+              maxfgcalls=100_000,
+              useXold=true)
     resvals = runtests(n, γ,
                        gaussian_noise=gaussian_noise,
                        tol=tol,
-                       maxfgcalls=maxfgcalls)
+                       maxfgcalls=maxfgcalls,
+                       useXold=useXold)
     plt = makeplot(resvals...)
     filename = @sprintf("n%d-γ%.2f.pdf", n, γ)
     savefig(plt, "../figs/$filename")
@@ -93,11 +95,10 @@ end
 @printf("%4s %6s %8s %6s %6s %10s %10s %10s\n",
         "n", "γ", "method", "k", "fgs", "rp", "rd", "time")
 t = @elapsed begin
-    for n = 700:100:1000
-        for γ = 0.05:0.05:0.20
-            test(n, γ, gaussian_noise=true)
+    for n = 1000:100:1000
+        for γ = 1.0:0.1:1.0
+            test(n, γ, useXold=false)
         end
     end
 end
 println(time2str(t))
-
