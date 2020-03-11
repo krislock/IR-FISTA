@@ -13,14 +13,25 @@ function genprob(
     memlim = 10,
     maxfgcalls = 100_000,
 )
-
     U, G, H = randncm(n, γ = γ, seed = seed, gaussian_noise = gaussian_noise)
     ncm = NCM(n, memlim = memlim, maxfgcalls = maxfgcalls)
 
     return U, G, H, ncm
 end
 
-function runall(G, H, ncm; maxfgcalls = 100_000, tol = 1e-1, printlevel = 1)
+function runall(
+    G,
+    H,
+    ncm;
+    maxfgcalls = 100_000,
+    tol = 1e-1,
+    printlevel = 1,
+    useXold = true,
+)
+    if useXold
+        X, y = CorNewton3(G)
+        ncm.Xold .= X
+    end
 
     @time ncm(
         G,
@@ -29,7 +40,13 @@ function runall(G, H, ncm; maxfgcalls = 100_000, tol = 1e-1, printlevel = 1)
         maxfgcalls = maxfgcalls,
         tol = tol,
         printlevel = printlevel,
+        useXold = useXold,
     )
+
+    if useXold
+        ncm.Xold .= X
+    end
+
     @time ncm(
         G,
         H,
@@ -38,6 +55,7 @@ function runall(G, H, ncm; maxfgcalls = 100_000, tol = 1e-1, printlevel = 1)
         maxfgcalls = maxfgcalls,
         tol = tol,
         printlevel = printlevel,
+        useXold = useXold,
     )
     #=
     H2 = ncm.H2
@@ -60,8 +78,8 @@ function tester(
     gaussian_noise = false,
     tol = 1e-1,
     printlevel = 1,
+    useXold = true,
 )
-
     U, G, H, ncm = genprob(
         n,
         γ,
@@ -76,5 +94,6 @@ function tester(
         maxfgcalls = maxfgcalls,
         tol = tol,
         printlevel = printlevel,
+        useXold = useXold,
     )
 end
