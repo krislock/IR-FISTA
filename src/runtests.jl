@@ -18,14 +18,17 @@ function runtests(
     useXold = true,
 )
 
-    U, G, H, ncm =
-        genprob(n, γ, gaussian_noise = gaussian_noise, maxfgcalls = maxfgcalls)
+    U, G, H, ncm = genprob(
+        n,
+        γ,
+        gaussian_noise = gaussian_noise,
+        maxfgcalls = maxfgcalls,
+    )
 
     if useXold
         X, y = CorNewton3(G)
         ncm.Xold .= X
     end
-
     @printf("%4d %6.2f %8s ", n, γ, "IAPG")
     t = @elapsed success, k = ncm(
         G,
@@ -45,7 +48,6 @@ function runtests(
     if useXold
         ncm.Xold .= X
     end
-
     @printf("%4d %6.2f %8s ", n, γ, "IR")
     t = @elapsed success, k = ncm(
         G,
@@ -63,10 +65,35 @@ function runtests(
     rd = ncm.res.rdRef[]
     @printf("%6d %6d %10.2e %10.2e %10s\n", k, fgcount, rp, rd, time2str(t))
 
-    return IAPGresvals, IRresvals
+    if useXold
+        ncm.Xold .= X
+    end
+    @printf("%4d %6.2f %8s ", n, γ, "IER")
+    H2 = ncm.H2
+    H2.data .= H .^ 2
+    L = fronorm(H2, ncm.proj.work)
+    α = round(1 / L, RoundUp, digits = 2)
+    t = @elapsed success, k = ncm(
+        G,
+        H,
+        method = :IER,
+        α = α,
+        σ = 1.0,
+        tol = tol,
+        useXold = useXold,
+        maxfgcalls = maxfgcalls,
+        printlevel = 0,
+    )
+    fgcount = ncm.res.fgcountRef[]
+    IERresvals = ncm.res.resvals[1:fgcount]
+    rp = ncm.res.rpRef[]
+    rd = ncm.res.rdRef[]
+    @printf("%6d %6d %10.2e %10.2e %10s\n", k, fgcount, rp, rd, time2str(t))
+
+    return IAPGresvals, IRresvals, IERresvals
 end
 
-function makeplot(IAPGresvals, IRresvals)
+function makeplot(IAPGresvals, IRresvals, IERresvals)
 
     plt = plot(
         yaxis = :log,
@@ -78,8 +105,9 @@ function makeplot(IAPGresvals, IRresvals)
         lc = :black,
     )
 
-    plot!(plt, IRresvals, label = "IR", ls = :auto, lc = :black)
     plot!(plt, IAPGresvals, label = "IAPG", ls = :auto, lc = :black)
+    plot!(plt, IRresvals, label = "IR", ls = :auto, lc = :black)
+    plot!(plt, IERresvals, label = "IER", ls = :auto, lc = :black)
 
     return plt
 end
@@ -120,9 +148,9 @@ end
     "time"
 )
 t = @elapsed begin
-    for n = 1000:100:1000
-        for γ = 1.0:0.1:1.0
-            test(n, γ, useXold = false)
+    for n = 100:100:1000
+        for γ = 0.1:0.1:1.0
+            test(n, γ)
         end
     end
 end
