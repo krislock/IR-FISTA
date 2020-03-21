@@ -205,6 +205,8 @@ function (ncm::NCM)(
     y = res.y
     Λ = res.Λ
 
+    Xnew .= Xold
+
     fgcountRef = res.fgcountRef
     rpRef = res.rpRef
     rdRef = res.rdRef
@@ -246,7 +248,7 @@ function (ncm::NCM)(
     k = 0
     t = t0
     Y .= Xold
-    gtol = NaN
+    innertol = NaN
     rp = rd = Inf
     innersuccess = true
     fgcountRef[] = 0
@@ -267,12 +269,11 @@ function (ncm::NCM)(
         end
 
         if method == :IAPG || method == :ER
-            #gtol = (1 + √n)*min(1/tnew^3.1, 0.2*rd)
-            gtol = 1 / tnew^2
+            innertol = 1 / t^2
         end
 
         if exact
-            gtol = 0.0
+            innertol = 0.0
         end
 
         maxinnerfgcalls = maxfgcalls - fgcount
@@ -283,13 +284,14 @@ function (ncm::NCM)(
             G,
             H,
             tol,
+            t,
             L,
             τ,
             α,
             σ;
             method = method,
             maxfgcalls = maxinnerfgcalls,
-            gtol = gtol,
+            innertol = innertol,
             exact = exact,
             verbose = innerverbose,
             lbfgsbprintlevel = lbfgsbprintlevel,
@@ -310,7 +312,7 @@ function (ncm::NCM)(
                 "k",
                 "fgcalls",
                 "||g||",
-                "gtol",
+                "innertol",
                 "f(X)",
                 "rp",
                 "rd"
@@ -320,7 +322,7 @@ function (ncm::NCM)(
                 k,
                 innerfgcalls,
                 norm(g),
-                gtol,
+                innertol,
                 fvals[fgcount],
                 rp,
                 rd
@@ -337,9 +339,7 @@ function (ncm::NCM)(
                 ((t - 1) / tnew) .* (Xnew.data .- Xold.data)
             Xold .= Xnew
         elseif method == :IER
-            Xold.data .-=
-                (tnew - t) .* V.data .+
-                ((tnew - t) * L) .* (Y.data .- Xnew.data)
+            Xold.data .-= (tnew - t) .* (V.data .+ L .* (Y.data .- Xnew.data))
         end
 
         t = tnew
