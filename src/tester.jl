@@ -13,8 +13,18 @@ function genprob(
     memlim = 10,
     maxfgcalls = 100_000,
 )
-    U, G, H = randncm(n, γ = γ, seed = seed, gaussian_noise = gaussian_noise)
-    ncm = NCM(n, memlim = memlim, maxfgcalls = maxfgcalls)
+    U, G, H = randncm(
+        n,
+        γ = γ,
+        seed = seed,
+        gaussian_noise = gaussian_noise,
+    )
+
+    ncm = NCM(
+        n,
+        memlim = memlim,
+        maxfgcalls = maxfgcalls,
+    )
 
     return U, G, H, ncm
 end
@@ -57,15 +67,26 @@ function runall(
         printlevel = printlevel,
         useXold = useXold,
     )
-    #=
+
+    if useXold
+        ncm.Xold .= X
+    end
+
     H2 = ncm.H2
-    H2.data .= H.^2
+    H2.data .= H .^ 2
     L = fronorm(H2, ncm.proj.work)
-    α = round(1/L, RoundUp, digits=2)
-    @time ncm(G, H, method=:IER, α=α,
-              maxfgcalls=maxfgcalls, tol=tol,
-              printlevel=printlevel)
-    =#
+    α = round(1 / L, RoundUp, digits = 2)
+    @time ncm(
+        G,
+        H,
+        method = :IER,
+        α = α,
+        σ = 1.0,
+        maxfgcalls = maxfgcalls,
+        tol = tol,
+        printlevel = printlevel,
+        useXold = useXold,
+    )
 
     return nothing
 end
