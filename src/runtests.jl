@@ -3,7 +3,7 @@ using Plots, LaTeXStrings, Printf, Dates
 include("tester.jl")
 
 function time2str(t)
-    ms = Millisecond(1000 * round(t))
+    ms = Millisecond(round(1000 * t))
     dt = convert(DateTime, ms)
     tt = convert(Time, dt)
     return string(tt)
@@ -43,7 +43,7 @@ function runtests(
     IAPGresvals = ncm.res.resvals[1:fgcount]
     rp = ncm.res.rpRef[]
     rd = ncm.res.rdRef[]
-    @printf("%6d %6d %10.2e %10.2e %10s\n", k, fgcount, rp, rd, time2str(t))
+    @printf("%6d %6d %10.2e %10.2e %12.1f\n", k, fgcount, rp, rd, t)
 
     if useXold
         ncm.Xold .= X
@@ -63,7 +63,7 @@ function runtests(
     IRresvals = ncm.res.resvals[1:fgcount]
     rp = ncm.res.rpRef[]
     rd = ncm.res.rdRef[]
-    @printf("%6d %6d %10.2e %10.2e %10s\n", k, fgcount, rp, rd, time2str(t))
+    @printf("%6d %6d %10.2e %10.2e %12.1f\n", k, fgcount, rp, rd, t)
 
     if useXold
         ncm.Xold .= X
@@ -88,7 +88,7 @@ function runtests(
     IERresvals = ncm.res.resvals[1:fgcount]
     rp = ncm.res.rpRef[]
     rd = ncm.res.rdRef[]
-    @printf("%6d %6d %10.2e %10.2e %10s\n", k, fgcount, rp, rd, time2str(t))
+    @printf("%6d %6d %10.2e %10.2e %12.1f\n", k, fgcount, rp, rd, t)
 
     return IAPGresvals, IRresvals, IERresvals
 end
@@ -137,7 +137,7 @@ end
 ############################################################
 
 @printf(
-    "%4s %6s %8s %6s %6s %10s %10s %10s\n",
+    "%4s %6s %8s %6s %6s %10s %10s %12s\n",
     "n",
     "γ",
     "method",
@@ -148,7 +148,7 @@ end
     "time"
 )
 t = @elapsed begin
-    for n = 100:100:1000
+    for n = 100:100:100
         for γ = 0.1:0.1:1.0
             test(n, γ)
         end
