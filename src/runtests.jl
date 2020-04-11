@@ -17,6 +17,8 @@ function runtests(
     maxfgcalls = 100_000,
     useXold = true,
 )
+    methods = [:IR, :IER, :IAPG]
+    results = Dict{Symbol, Vector{Float64}}()
 
     U, G, H, ncm = genprob(
         n,
@@ -27,73 +29,48 @@ function runtests(
 
     if useXold
         X, y = CorNewton3(G)
-        ncm.Xold .= X
     end
-    @printf("%4d %6.2f %8s ", n, γ, "IAPG")
-    t = @elapsed success, k = ncm(
-        G,
-        H,
-        method = :IAPG,
-        tol = tol,
-        useXold = useXold,
-        maxfgcalls = maxfgcalls,
-        printlevel = 0,
-    )
-    fgcount = ncm.res.fgcountRef[]
-    IAPGresvals = ncm.res.resvals[1:fgcount]
-    rp = ncm.res.rpRef[]
-    rd = ncm.res.rdRef[]
-    @printf("%6d %6d %10.2e %10.2e %10.1f\n", k, fgcount, rp, rd, t)
 
-    if useXold
-        ncm.Xold .= X
+    for method in methods
+        if method == :IR
+            τ, α, σ = 0.95, 0.0, 1.0
+        elseif method == :IER
+            τ, σ = 1.0, 1.0
+            H2 = ncm.H2
+            H2.data .= H .^ 2
+            L = fronorm(H2, ncm.proj.work)
+            α = round(1 / L, RoundUp, digits = 2)
+        elseif method == :IAPG
+            τ, α, σ = 1.0, 0.0, 1.0
+        end
+
+        if useXold
+            ncm.Xold .= X
+        end
+        @printf("%4d %5.2f %7s ", n, γ, method)
+        t = @elapsed success, k = ncm(
+            G,
+            H,
+            method = method,
+            τ = τ,
+            α = α,
+            σ = σ,
+            tol = tol,
+            useXold = useXold,
+            maxfgcalls = maxfgcalls,
+            printlevel = 0,
+        )
+        fgcount = ncm.res.fgcountRef[]
+        results[method] = ncm.res.resvals[1:fgcount]
+        rp = ncm.res.rpRef[]
+        rd = ncm.res.rdRef[]
+        @printf("%5d %6d %9.2e %9.2e %7.1f\n", k, fgcount, rp, rd, t)
     end
-    @printf("%4d %6.2f %8s ", n, γ, "IR")
-    t = @elapsed success, k = ncm(
-        G,
-        H,
-        method = :IR,
-        τ = 0.95,
-        tol = tol,
-        useXold = useXold,
-        maxfgcalls = maxfgcalls,
-        printlevel = 0,
-    )
-    fgcount = ncm.res.fgcountRef[]
-    IRresvals = ncm.res.resvals[1:fgcount]
-    rp = ncm.res.rpRef[]
-    rd = ncm.res.rdRef[]
-    @printf("%6d %6d %10.2e %10.2e %10.1f\n", k, fgcount, rp, rd, t)
 
-    if useXold
-        ncm.Xold .= X
-    end
-    @printf("%4d %6.2f %8s ", n, γ, "IER")
-    H2 = ncm.H2
-    H2.data .= H .^ 2
-    L = fronorm(H2, ncm.proj.work)
-    α = round(1 / L, RoundUp, digits = 2)
-    t = @elapsed success, k = ncm(
-        G,
-        H,
-        method = :IER,
-        α = α,
-        σ = 1.0,
-        tol = tol,
-        useXold = useXold,
-        maxfgcalls = maxfgcalls,
-        printlevel = 0,
-    )
-    fgcount = ncm.res.fgcountRef[]
-    IERresvals = ncm.res.resvals[1:fgcount]
-    rp = ncm.res.rpRef[]
-    rd = ncm.res.rdRef[]
-    @printf("%6d %6d %10.2e %10.2e %10.1f\n", k, fgcount, rp, rd, t)
-
-    return IAPGresvals, IRresvals, IERresvals
+    return results
 end
 
-function makeplot(IAPGresvals, IRresvals, IERresvals)
+function makeplot(results)
 
     plt = plot(
         yaxis = :log,
@@ -105,9 +82,9 @@ function makeplot(IAPGresvals, IRresvals, IERresvals)
         lc = :black,
     )
 
-    plot!(plt, IAPGresvals, label = "IAPG", ls = :auto, lc = :black)
-    plot!(plt, IRresvals, label = "IR", ls = :auto, lc = :black)
-    plot!(plt, IERresvals, label = "IER", ls = :auto, lc = :black)
+    plot!(plt, results[:IR],   label = "I-FISTA",  ls = :auto, lc = :black)
+    plot!(plt, results[:IER],  label = "IE-FISTA", ls = :auto, lc = :black)
+    plot!(plt, results[:IAPG], label = "IA-FISTA", ls = :auto, lc = :black)
 
     return plt
 end
@@ -120,7 +97,7 @@ function test(
     maxfgcalls = 100_000,
     useXold = true,
 )
-    resvals = runtests(
+    results = runtests(
         n,
         γ,
         gaussian_noise = gaussian_noise,
@@ -128,16 +105,18 @@ function test(
         maxfgcalls = maxfgcalls,
         useXold = useXold,
     )
-    plt = makeplot(resvals...)
+
+    plt = makeplot(results)
     filename = @sprintf("n%d-γ%.2f.pdf", n, γ)
     savefig(plt, "../figs/$filename")
+
     return nothing
 end
 
 ############################################################
 
 @printf(
-    "%4s %6s %8s %6s %6s %10s %10s %10s\n",
+    "%4s %5s %7s %5s %6s %9s %9s %7s\n",
     "n",
     "γ",
     "method",
