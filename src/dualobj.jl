@@ -79,16 +79,16 @@ function dualobj!(ncm, G, H, L, τ; computeV::Bool = false, scaleX::Bool = true)
             Γ.data[i, j] = -Λ.data[i, j]
             Z.data[i, j] = Xnew.data[i, j] - Y.data[i, j]
             if computeV
-                V.data[i, j] = ∇fY.data[i, j] + Ldτ * Z.data[i, j] + Γ.data[i, j]
-                #V.data[i,j] = Ldτ * (Xnew.data[i,j] - X.data[i,j])
+                #V.data[i, j] = ∇fY.data[i, j] + Ldτ * Z.data[i, j] + Γ.data[i, j]
+                V.data[i,j] = Ldτ * (Xnew.data[i,j] - X.data[i,j])
             end
             R.data[i, j] = H.data[i, j] * (Xnew.data[i, j] - G.data[i, j])
             Rd.data[i, j] = H.data[i, j] * R.data[i, j] + Γ.data[i, j]
         end
         Γ.data[j, j] -= y[j]
-        if computeV
-            V.data[j, j] -= y[j]
-        end
+        #if computeV
+        #    V.data[j, j] -= y[j]
+        #end
         Rd.data[j, j] -= y[j]
     end
 
