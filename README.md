@@ -1,4 +1,13 @@
-https://www.polyu.edu.hk/ama/profile/dfsun/
-https://nhigham.com/2013/02/13/the-nearest-correlation-matrix/
-https://www.nag.co.uk/numeric/mb/manual64_24_1/html/g02/g02ajf.html
-https://www.nag.co.uk/IndustryArticles/Nearest_Correlation_Matrix.pdf
+# IR-FISTA
+
+This repository contains the code developed for the numerical tests in
+
+*On Inexact Accelerated Proximal Gradient Methods with Relative Error Rules.* <br>
+Yunier Bello-Cruz, Max L. N. Gonçalves, and Nathan Krislock. <br>
+Submitted May 6, 2020. <br>
+[ Preprint ](http://www.optimization-online.org/DB_HTML/2020/05/7778.html)
+
+To run the numerical tests
+
+`cd src` <br>
+`julia runtests.jl`
