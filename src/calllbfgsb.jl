@@ -135,6 +135,8 @@ function calllbfgsb!(
                     H,
                     L,
                     τ,
+                    α,
+                    method,
                     computeV = computeV,
                     scaleX = scaleX,
                 )

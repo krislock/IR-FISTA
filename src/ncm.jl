@@ -161,7 +161,7 @@ function (ncm::NCM)(
     τ::Float64 = 1.0,
     α::Float64 = 0.0,
     σ::Float64 = 1.0,
-    tol::Float64 = 1e-2,
+    tol::Float64 = 1e-1,
     kmax::Int64 = 100_000,
     maxfgcalls::Int64 = 100_000,
     printlevel::Int64 = 1,
@@ -231,7 +231,8 @@ function (ncm::NCM)(
 
     if method == :IER
         τ == 1 || error("IER method requires τ = 1")
-        α > 1 / L || error("IER method requires α > $(1/L)")
+        #α > 1 / L || error("IER method requires α > $(1/L)")
+        α > 0 || error("IER method requires α > 0")
         0 ≤ σ ≤ 1 || error("IER method requires 0 ≤ σ ≤ 1")
         λ = α / (1 + α * L)
         t0 = 0.0
@@ -254,7 +255,7 @@ function (ncm::NCM)(
     fgcountRef[] = 0
     fgcount = fgcountRef[]
 
-    while (#innersuccess &&
+    while (innersuccess &&
         max(rp, rd) > tol && k < kmax && fgcount < maxfgcalls
     )
 

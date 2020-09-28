@@ -20,6 +20,18 @@ function runtests(
     methods = [:IR, :IER, :IAPG]
     results = Dict{Symbol, Vector{Float64}}()
 
+    @printf(
+        "%4s %5s %7s %5s %6s %9s %9s %7s\n",
+        "n",
+        "γ",
+        "method",
+        "k",
+        "fgs",
+        "rp",
+        "rd",
+        "time"
+    )
+
     U, G, H, ncm = genprob(
         n,
         γ,
@@ -115,17 +127,6 @@ end
 
 ############################################################
 
-@printf(
-    "%4s %5s %7s %5s %6s %9s %9s %7s\n",
-    "n",
-    "γ",
-    "method",
-    "k",
-    "fgs",
-    "rp",
-    "rd",
-    "time"
-)
 t = @elapsed begin
     for n = 100:100:800
         for γ = 0.1:0.1:1.0
