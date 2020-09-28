@@ -340,7 +340,7 @@ function (ncm::NCM)(
                 ((t - 1) / tnew) .* (Xnew.data .- Xold.data)
             Xold .= Xnew
         elseif method == :IER
-            Xold.data .-= (tnew - t) .* (V.data .+ L .* (Y.data .- Xnew.data))
+            Xold.data .-= (tnew - t) .* (V.data .+ (Y.data .- Xnew.data)./λ)
         end
 
         t = tnew
