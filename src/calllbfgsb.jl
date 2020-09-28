@@ -163,9 +163,11 @@ function calllbfgsb!(
                             rhs = L * ((1 - τ) * L - α * τ) * dist^2
                             condition = (lhs ≤ rhs)
                         elseif method == :IER
-                            Z.data .+= α .* V.data
-                            β = fronorm(Z, proj.work)
-                            lhs = β^2 + 2α * ε
+                            #Z.data .+= α .* V.data
+                            #β = fronorm(Z, proj.work)
+                            #lhs = β^2 + 2α * ε
+                            δ = fronorm(V, proj.work)
+                            lhs = (α * δ)^2 + 2α * ε
                             rhs = (σ * dist)^2
                             condition = (lhs ≤ rhs)
                         end
