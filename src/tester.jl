@@ -72,18 +72,15 @@ function runall(
         ncm.Xold .= X
     end
 
-    #=
     H2 = ncm.H2
     H2.data .= H .^ 2
     L = fronorm(H2, ncm.proj.work)
-    α = round(1 / L, RoundUp, digits = 2)
-    =#
 
     @time ncm(
         G,
         H,
         method = :IER,
-        α = 0.1,
+        α = 19/L,
         σ = 1.0,
         maxfgcalls = maxfgcalls,
         tol = tol,

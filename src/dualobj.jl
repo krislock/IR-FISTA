@@ -36,8 +36,6 @@ function dualobj!(ncm, G, H, L, τ, α, method;
     res.fgcountRef[] += 1
     fgcount = res.fgcountRef[]
 
-    #τdL = τ / L
-    #Ldτ = L / τ
     if method == :IR
         Lbar = L / τ
     elseif method == :IER

@@ -10,6 +10,7 @@ struct NCMresults
     distvals::Vector{Float64}
     rpRef::Base.RefValue{Float64}
     rdRef::Base.RefValue{Float64}
+    εRef::Base.RefValue{Float64}
 
     function NCMresults(n, maxfgcalls)
         X = Symmetric(zeros(n, n))
@@ -21,8 +22,9 @@ struct NCMresults
         distvals = Vector{Float64}(undef, maxfgcalls)
         rpRef = Ref{Float64}(0.0)
         rdRef = Ref{Float64}(0.0)
+        εRef = Ref{Float64}(0.0)
 
-        new(X, y, Λ, fgcountRef, fvals, resvals, distvals, rpRef, rdRef)
+        new(X, y, Λ, fgcountRef, fvals, resvals, distvals, rpRef, rdRef, εRef)
     end
 end
 
@@ -61,7 +63,6 @@ struct NCM
     fRef::Base.RefValue{Float64}
     factr::Base.RefValue{Float64}
     pgtol::Base.RefValue{Float64}
-    εRef::Base.RefValue{Float64}
     proj::ProjPSD
     res::NCMresults
 
@@ -106,8 +107,6 @@ struct NCM
         factr = Ref{Cdouble}(0.0)
         pgtol = Ref{Cdouble}(0.0)
 
-        εRef = Ref{Float64}(0.0)
-
         proj = ProjPSD(n)
 
         res = NCMresults(n, maxfgcalls)
@@ -146,7 +145,6 @@ struct NCM
             fRef,
             factr,
             pgtol,
-            εRef,
             proj,
             res,
         )
@@ -210,7 +208,7 @@ function (ncm::NCM)(
     fgcountRef = res.fgcountRef
     rpRef = res.rpRef
     rdRef = res.rdRef
-    εRef = ncm.εRef
+    εRef  = res.εRef
     fvals = res.fvals
 
     H2.data .= H .^ 2
@@ -232,8 +230,7 @@ function (ncm::NCM)(
 
     if method == :IER
         τ == 1 || error("IER method requires τ = 1")
-        #α > 1 / L || error("IER method requires α > $(1/L)")
-        α = 19/L
+        # α = 19/L
         α > 0 || error("IER method requires α > 0")
         0 ≤ σ ≤ 1 || error("IER method requires 0 ≤ σ ≤ 1")
         λ = α / (1 + α * L)

@@ -44,11 +44,15 @@ function runtests(
         X, y = CorNewton3(G)
     end
 
+    H2 = ncm.H2
+    H2.data .= H .^ 2
+    L = fronorm(H2, ncm.proj.work)
+
     for method in methods
         if method == :IR
             τ, α, σ = 0.95, 0.0, 1.0
         elseif method == :IER
-            τ, α, σ = 1.0, 0.1, 1.0
+            τ, α, σ = 1.0, 19/L, 1.0
         elseif method == :IAPG
             τ, α, σ = 1.0, 0.0, 1.0
         end
