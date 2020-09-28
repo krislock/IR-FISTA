@@ -16,11 +16,12 @@ function runtests(
     tol = 1e-1,
     maxfgcalls = 100_000,
     useXold = true,
+    printlevel = 0,
 )
     methods = [:IR, :IER, :IAPG]
     results = Dict{Symbol, Vector{Float64}}()
 
-    @printf(
+    printlevel == 0 && @printf(
         "%4s %5s %7s %5s %6s %9s %9s %7s\n",
         "n",
         "γ",
@@ -47,11 +48,7 @@ function runtests(
         if method == :IR
             τ, α, σ = 0.95, 0.0, 1.0
         elseif method == :IER
-            τ, σ = 1.0, 1.0
-            H2 = ncm.H2
-            H2.data .= H .^ 2
-            L = fronorm(H2, ncm.proj.work)
-            α = round(1 / L, RoundUp, digits = 2)
+            τ, α, σ = 1.0, 0.1, 1.0
         elseif method == :IAPG
             τ, α, σ = 1.0, 0.0, 1.0
         end
@@ -59,7 +56,7 @@ function runtests(
         if useXold
             ncm.Xold .= X
         end
-        @printf("%4d %5.2f %7s ", n, γ, method)
+        printlevel == 0 && @printf("%4d %5.2f %7s ", n, γ, method)
         t = @elapsed success, k = ncm(
             G,
             H,
@@ -70,13 +67,13 @@ function runtests(
             tol = tol,
             useXold = useXold,
             maxfgcalls = maxfgcalls,
-            printlevel = 0,
+            printlevel = printlevel,
         )
         fgcount = ncm.res.fgcountRef[]
         results[method] = ncm.res.resvals[1:fgcount]
         rp = ncm.res.rpRef[]
         rd = ncm.res.rdRef[]
-        @printf("%5d %6d %9.2e %9.2e %7.1f\n", k, fgcount, rp, rd, t)
+        printlevel == 0 && @printf("%5d %6d %9.2e %9.2e %7.1f\n", k, fgcount, rp, rd, t)
     end
 
     return results
