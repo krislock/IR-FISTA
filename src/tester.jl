@@ -83,7 +83,7 @@ function runall(
         G,
         H,
         method = :IER,
-        α = 1.0,
+        α = 0.1,
         σ = 1.0,
         maxfgcalls = maxfgcalls,
         tol = tol,

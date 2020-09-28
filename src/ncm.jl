@@ -210,6 +210,7 @@ function (ncm::NCM)(
     fgcountRef = res.fgcountRef
     rpRef = res.rpRef
     rdRef = res.rdRef
+    εRef = ncm.εRef
     fvals = res.fvals
 
     H2.data .= H .^ 2
@@ -232,6 +233,7 @@ function (ncm::NCM)(
     if method == :IER
         τ == 1 || error("IER method requires τ = 1")
         #α > 1 / L || error("IER method requires α > $(1/L)")
+        α = 19/L
         α > 0 || error("IER method requires α > 0")
         0 ≤ σ ≤ 1 || error("IER method requires 0 ≤ σ ≤ 1")
         λ = α / (1 + α * L)
@@ -305,28 +307,30 @@ function (ncm::NCM)(
         fgcount = fgcountRef[]
         innerfgcalls = fgcount - (maxfgcalls - maxinnerfgcalls)
 
-        rp, rd = rpRef[], rdRef[]
+        rp, rd, ε = rpRef[], rdRef[], εRef[]
 
         if printlevel ≥ 2
             mod(k, 20) == 1 && @printf(
-                "%4s %8s %10s %10s %10s %10s %10s\n",
+                "%4s %8s %10s %10s %10s %10s %10s %10s\n",
                 "k",
                 "fgcalls",
                 "||g||",
                 "innertol",
                 "f(X)",
                 "rp",
-                "rd"
+                "rd",
+                "ε"
             )
             @printf(
-                "%4d %8d %10.2e %10.2e %10.2e %10.2e %10.2e\n",
+                "%4d %8d %10.2e %10.2e %10.2e %10.2e %10.2e %10.2e\n",
                 k,
                 innerfgcalls,
                 norm(g),
                 innertol,
                 fvals[fgcount],
                 rp,
-                rd
+                rd,
+                ε
             )
         end
 
