@@ -18,11 +18,11 @@ function runtests(
     useXold = true,
     printlevel = 0,
 )
-    methods = [:IR, :IER, :IAPG]
+    methods = (:IR, :IER, :IAPG)
     results = Dict{Symbol, Vector{Float64}}()
 
     printlevel == 0 && @printf(
-        "%4s %5s %7s %5s %6s %9s %9s %7s\n",
+        "%4s %5s %7s %5s %6s %9s %9s %9s %7s\n",
         "n",
         "γ",
         "method",
@@ -30,6 +30,7 @@ function runtests(
         "fgs",
         "rp",
         "rd",
+        "ε",
         "time"
     )
 
@@ -77,7 +78,12 @@ function runtests(
         results[method] = ncm.res.resvals[1:fgcount]
         rp = ncm.res.rpRef[]
         rd = ncm.res.rdRef[]
-        printlevel == 0 && @printf("%5d %6d %9.2e %9.2e %7.1f\n", k, fgcount, rp, rd, t)
+        ε  = ncm.res.εRef[]
+        if printlevel == 0
+            @printf("%5d %6d %9.2e %9.2e %9.2e %7.1f", k, fgcount, rp, rd, ε, t)
+            success || @printf(" <----- FAILED")
+            @printf("\n")
+        end
     end
 
     return results
@@ -87,7 +93,7 @@ function makeplot(results)
 
     plt = plot(
         yaxis = :log,
-        ylims = [1e-1, 1e+2],
+        ylims = [1e-2, 1e+2],
         xlabel = "function evaluations",
         ylabel = L"\max\{r_p,r_d\}",
         size = (900, 600),
@@ -95,9 +101,18 @@ function makeplot(results)
         lc = :black,
     )
 
-    plot!(plt, results[:IR],   label = "I-FISTA",  ls = :auto, lc = :black)
-    plot!(plt, results[:IER],  label = "IE-FISTA", ls = :auto, lc = :black)
-    plot!(plt, results[:IAPG], label = "IA-FISTA", ls = :auto, lc = :black)
+    method = (:IR, :IER, :IAPG)
+    label   = ("I-FISTA", "IE-FISTA", "IA-FISTA")
+
+    for i = 1:length(method)
+        res = results[method[i]]
+        plot!(plt, res, label=label[i], ls=:auto, lc=:black)
+        fgs = length(res)
+        finalres = res[end]
+        if finalres > 1e-2
+            plot!(plt, [fgs], [finalres], m=:x, mc=:black, label=false)
+        end
+    end
 
     return plt
 end
@@ -131,7 +146,7 @@ end
 t = @elapsed begin
     for n = 100:100:800
         for γ = 0.1:0.1:1.0
-            test(n, γ)
+            test(n, γ, tol=1e-2)
         end
     end
 end
