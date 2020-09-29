@@ -254,7 +254,7 @@ function (ncm::NCM)(
     fgcountRef[] = 0
     fgcount = fgcountRef[]
 
-    while (innersuccess &&
+    while (#innersuccess &&
         max(rp, rd) > tol && k < kmax && fgcount < maxfgcalls
     )
 

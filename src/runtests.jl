@@ -80,7 +80,8 @@ function runtests(
         rd = ncm.res.rdRef[]
         ε  = ncm.res.εRef[]
         if printlevel == 0
-            @printf("%5d %6d %9.2e %9.2e %9.2e %7.1f", k, fgcount, rp, rd, ε, t)
+            @printf("%5d %6d %9.2e %9.2e %9.2e %7.1f",
+                    k, fgcount, rp, rd, ε, t)
             success || @printf(" <----- FAILED")
             @printf("\n")
         end
@@ -89,11 +90,11 @@ function runtests(
     return results
 end
 
-function makeplot(results)
+function makeplot(results, tol)
 
     plt = plot(
         yaxis = :log,
-        ylims = [1e-2, 1e+2],
+        ylims = [tol, 1e+2],
         xlabel = "function evaluations",
         ylabel = L"\max\{r_p,r_d\}",
         size = (900, 600),
@@ -102,14 +103,16 @@ function makeplot(results)
     )
 
     method = (:IR, :IER, :IAPG)
-    label   = ("I-FISTA", "IE-FISTA", "IA-FISTA")
+    label  = ("I-FISTA", "IE-FISTA", "IA-FISTA")
 
     for i = 1:length(method)
         res = results[method[i]]
         plot!(plt, res, label=label[i], ls=:auto, lc=:black)
+
+        # Put an "x" on the plot to indicate a method died
         fgs = length(res)
         finalres = res[end]
-        if finalres > 1e-2
+        if finalres > tol
             plot!(plt, [fgs], [finalres], m=:x, mc=:black, label=false)
         end
     end
@@ -134,7 +137,7 @@ function test(
         useXold = useXold,
     )
 
-    plt = makeplot(results)
+    plt = makeplot(results, tol)
     filename = @sprintf("n%d-γ%.2f.pdf", n, γ)
     savefig(plt, "../figs/$filename")
 
@@ -144,10 +147,11 @@ end
 ############################################################
 
 t = @elapsed begin
-    for n = 100:100:800
+    for n = 800:100:800
         for γ = 0.1:0.1:1.0
-            test(n, γ, tol=1e-2)
+            test(n, γ)
         end
     end
 end
 println(time2str(t))
+
