@@ -1,2 +1,4 @@
 [deps]
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+JLD = "4138dd39-2aa7-5051-a626-17a0bb65d9c8"
 LBFGSB = "5be7bae1-8223-5378-bac3-9e7378a2f6e6"

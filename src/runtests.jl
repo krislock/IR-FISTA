@@ -1,4 +1,5 @@
 using Plots, LaTeXStrings, Printf, Dates
+using JLD
 
 include("tester.jl")
 
@@ -42,7 +43,8 @@ function runtests(
     )
 
     if useXold
-        X, y = CorNewton3(G)
+        #X, y = CorNewton3(G)
+        X = load("CorNewton3solns/n$n-γ$γ.jld", "X")
     end
 
     H2 = ncm.H2
