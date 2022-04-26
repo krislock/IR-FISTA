@@ -19,7 +19,7 @@ function onion(n; η = 1.0)
     for k = 2:n-1
         β -= 0.5
         y = rand(Beta(k / 2, β))
-        u = normalize!(randn(k))
+        u = normalize!(Random.randn(k))
         w = sqrt(y) * u
         F = cholesky(Symmetric(S[1:k, 1:k]))
         S.data[1:k, k+1] = F.L * w
@@ -50,7 +50,7 @@ function randncm(n; seed = 0, γ = 0.0, p = 0.5, gaussian_noise = false)
             for i = 1:j-1
                 Hij = H.data[i, j]
                 if Hij > 0.0
-                    G.data[i, j] += γ * randn() / Hij
+                    G.data[i, j] += γ * Random.randn() / Hij
                 else
                     G.data[i, j] = 0.0
                 end
