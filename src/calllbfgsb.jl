@@ -145,14 +145,16 @@ function calllbfgsb!(
                 if resvals[fgcountRef[]] < tol
                     copyto!(task, STOP)
                 elseif !exact
+                    εRef[] = symdot(Xnew, Λ)
+                    ε = max(0.0, εRef[])
                     if method == :IAPG
                         δ = fronorm(V, proj.work)
-                        lhs = 1/√L * δ
-                        rhs = innertol / (√2 * t)
+                        #lhs = 1/√L * δ
+                        #rhs = innertol / (√2 * t)
+                        lhs = δ^2 + 2 * ε * L
+                        rhs = innertol
                         condition = (lhs ≤ rhs)
                     else
-                        εRef[] = symdot(Xnew, Λ)
-                        ε = max(0.0, εRef[])
                         dist = distvals[fgcountRef[]]
                         if method == :IR
                             δ = fronorm(V, proj.work)

@@ -158,6 +158,7 @@ function (ncm::NCM)(
     G::Symmetric{Float64,Array{Float64,2}},
     H::Symmetric{Float64,Array{Float64,2}};
     method::Symbol = :IAPG,
+    p::Float64 = 2.0,
     τ::Float64 = 1.0,
     α::Float64 = 0.0,
     tol::Float64 = 1e-2,
@@ -244,18 +245,13 @@ function (ncm::NCM)(
     fgcount = fgcountRef[]
 
     while (#innersuccess &&
-        max(rp, rd) > tol && k < kmax && fgcount < maxfgcalls
-    )
+        max(rp, rd) > tol && k < kmax && fgcount < maxfgcalls)
 
         k += 1
         tnew = (1 + √(1 + 4 * t^2)) / 2
 
-        if method == :IAPG || method == :IR
-            innertol = 1 / t^2
-        end
-
-        if exact
-            innertol = 0.0
+        if method == :IAPG
+            innertol = k^-p
         end
 
         maxinnerfgcalls = maxfgcalls - fgcount

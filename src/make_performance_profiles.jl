@@ -10,18 +10,20 @@ end
 
 function make_performance_profile(df, category)
 
-    IAPG = myunstack(df, "IAPG", category)
-    IR   = myunstack(df, "IR",   category)
+    IAPG2 = myunstack(df, "IAPG2", category)
+    IAPG3 = myunstack(df, "IAPG3", category)
+    IAPG4 = myunstack(df, "IAPG4", category)
+    IR    = myunstack(df, "IR",    category)
 
-    T = Float64[IR.array[:] IAPG.array[:]]
-    solvernames = ["I-FISTA", "IA-FISTA"]
+    T = Float64[IR.array[:] IAPG2.array[:] IAPG3.array[:] IAPG4.array[:]]
+    solvernames = ["I-FISTA", "IA-FISTA (p=2)", "IA-FISTA (p=3)", "IA-FISTA (p=4)"]
 
     plt = performance_profile(PlotsBackend(), T, solvernames, 
                               logscale=false, 
                               size=(800, 600),
                               legend=:bottomright,
-                              style=:auto,
-                              linecolor=:black)
+                              linestyles=[:solid, :dash, :dot, :dashdot],
+                              linecolor=:auto)
 
     pltfile = "performance_profile_$(category).pdf"
     savefig(plt, pltfile)
