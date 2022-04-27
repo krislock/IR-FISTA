@@ -178,13 +178,13 @@ function (ncm::NCM)(
     #∇f(X) = Symmetric(H2.*(X .- G))
 
     n = size(G, 1)
-    validmethod = (method == :IAPG || method == :IR || method == :IER)
+    validmethod = (method == :IAPG || method == :IR)
 
     # Check for valid input
     if maxfgcalls > ncm.maxfgcalls
         error("require maxfgcalls ≤ ncm.maxfgcalls")
     end
-    validmethod || error("method must be :IAPG or :IR or :IER")
+    validmethod || error("method must be :IAPG or :IR")
     n == ncm.n || error("require n == ncm.n")
     size(G) == size(H) || error("G and H must be the same size")
     issymmetric(G) || error("G must be symmetric")
@@ -229,14 +229,6 @@ function (ncm::NCM)(
         t0 = 1.0
     end
 
-    if method == :IER
-        τ == 1 || error("IER method requires τ = 1")
-        α > 1 / L || error("IER method requires α > $(1/L)")
-        0 ≤ σ ≤ 1 || error("IER method requires 0 ≤ σ ≤ 1")
-        λ = α / (1 + α * L)
-        t0 = 0.0
-    end
-
     printlevel ≥ 1 && println("$method method, τ=$τ, α=$α, σ=$σ, tol=$tol")
 
     if !useXold
@@ -260,7 +252,7 @@ function (ncm::NCM)(
 
         k += 1
 
-        if method == :IER || method == :ER
+        if method == :ER
             tnew = t + (λ + √(λ^2 + 4λ * t)) / 2
             Y.data .=
                 (t / tnew) .* Xnew.data .+ ((tnew - t) / tnew) .* Xold.data
@@ -338,8 +330,6 @@ function (ncm::NCM)(
                 Xnew.data .- ((t / tnew) * (τ / L)) .* V.data .+
                 ((t - 1) / tnew) .* (Xnew.data .- Xold.data)
             Xold .= Xnew
-        elseif method == :IER
-            Xold.data .-= (tnew - t) .* (V.data .+ L .* (Y.data .- Xnew.data))
         end
 
         t = tnew

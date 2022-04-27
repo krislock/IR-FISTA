@@ -87,7 +87,7 @@ function calllbfgsb!(
 
     StopBFGS = false
     successful = true
-    computeV = (method == :IAPG || method == :IR || method == :IER)
+    computeV = (method == :IAPG || method == :IR)
 
     # "We start the iteration by initializing task."
     copyto!(task, START)
@@ -159,12 +159,6 @@ function calllbfgsb!(
                             δ = fronorm(V, proj.work)
                             lhs = (τ * δ)^2 + 2τ * ε * L
                             rhs = L * ((1 - τ) * L - α * τ) * dist^2
-                            condition = (lhs ≤ rhs)
-                        elseif method == :IER
-                            Z.data .+= α .* V.data
-                            β = fronorm(Z, proj.work)
-                            lhs = β^2 + 2α * ε
-                            rhs = (σ * dist)^2
                             condition = (lhs ≤ rhs)
                         end
                     end

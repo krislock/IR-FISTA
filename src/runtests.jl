@@ -1,5 +1,7 @@
 using Plots, LaTeXStrings, Printf, Dates
 
+ENV["GKSwstype"] = "nul"   # Removes plotting error when using VS Code remotely
+
 include("tester.jl")
 
 function time2str(t)
@@ -17,7 +19,7 @@ function runtests(
     maxfgcalls = 100_000,
     useXold = true,
 )
-    methods = [:IR, :IER, :IAPG]
+    methods = [:IR, :IAPG]
     results = Dict{Symbol, Vector{Float64}}()
 
     U, G, H, ncm = genprob(
@@ -34,12 +36,6 @@ function runtests(
     for method in methods
         if method == :IR
             τ, α, σ = 0.95, 0.0, 1.0
-        elseif method == :IER
-            τ, σ = 1.0, 1.0
-            H2 = ncm.H2
-            H2.data .= H .^ 2
-            L = fronorm(H2, ncm.proj.work)
-            α = round(1 / L, RoundUp, digits = 2)
         elseif method == :IAPG
             τ, α, σ = 1.0, 0.0, 1.0
         end
@@ -83,7 +79,6 @@ function makeplot(results)
     )
 
     plot!(plt, results[:IR],   label = "I-FISTA",  ls = :auto, lc = :black)
-    plot!(plt, results[:IER],  label = "IE-FISTA", ls = :auto, lc = :black)
     plot!(plt, results[:IAPG], label = "IA-FISTA", ls = :auto, lc = :black)
 
     return plt
@@ -127,8 +122,8 @@ end
     "time"
 )
 t = @elapsed begin
-    for n = 100:100:800
-        for γ = 0.1:0.1:1.0
+    for n = 100:100:100
+        for γ = 0.1:0.1:0.1
             test(n, γ)
         end
     end

@@ -63,7 +63,7 @@ function dualobj!(ncm, G, H, L, τ; computeV::Bool = false, scaleX::Bool = true)
     # Λ  = Ldτ*(X - M)        # Λ is psd
     # Γ  = -Diag(y) - Λ       # Γ is an ε-subgradient
     # Z  = Xnew - Y           # used to compute ||Xnew - Y||
-    # V  = ∇f(Y) + Ldτ*Z + Γ  # used in the IR and IER updates
+    # V  = ∇f(Y) + Ldτ*Z + Γ  # used in the IR update
     # R  = H.*(Xnew - G)      # used to compute primal objective
     # Rd = H.*R + Γ           # used to compute dual feasibility
 
