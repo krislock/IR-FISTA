@@ -22,8 +22,7 @@ function calllbfgsb!(
     t,
     L,
     τ,
-    α,
-    σ;
+    α;
     method::Symbol = :IAPG,
     innertol::Float64 = 1e-2,
     maxfgcalls::Int64 = 100,

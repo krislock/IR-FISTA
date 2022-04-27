@@ -160,7 +160,6 @@ function (ncm::NCM)(
     method::Symbol = :IAPG,
     τ::Float64 = 1.0,
     α::Float64 = 0.0,
-    σ::Float64 = 1.0,
     tol::Float64 = 1e-2,
     kmax::Int64 = 100_000,
     maxfgcalls::Int64 = 100_000,
@@ -219,17 +218,15 @@ function (ncm::NCM)(
 
     if method == :IAPG
         τ == 1 || error("IAPG method requires τ = 1")
-        t0 = 1.0
     end
 
     if method == :IR
         0 < τ ≤ 1 || error("IR method requires 0 < τ ≤ 1")
         0 ≤ α ≤ (1 - τ) * (L / τ) ||
         error("IR method requires 0 ≤ α ≤ $((1 - τ)*(L/τ))")
-        t0 = 1.0
     end
 
-    printlevel ≥ 1 && println("$method method, τ=$τ, α=$α, σ=$σ, tol=$tol")
+    printlevel ≥ 1 && println("$method method, τ=$τ, α=$α, tol=$tol")
 
     if !useXold
         fill!(Xold, 0.0)
@@ -238,7 +235,7 @@ function (ncm::NCM)(
     fill!(y, 0.0)
 
     k = 0
-    t = t0
+    t = 1.0
     Y .= Xold
     innertol = NaN
     rp = rd = Inf
@@ -251,16 +248,9 @@ function (ncm::NCM)(
     )
 
         k += 1
+        tnew = (1 + √(1 + 4 * t^2)) / 2
 
-        if method == :ER
-            tnew = t + (λ + √(λ^2 + 4λ * t)) / 2
-            Y.data .=
-                (t / tnew) .* Xnew.data .+ ((tnew - t) / tnew) .* Xold.data
-        else
-            tnew = (1 + √(1 + 4 * t^2)) / 2
-        end
-
-        if method == :IAPG || method == :ER
+        if method == :IAPG || method == :IR
             innertol = 1 / t^2
         end
 
@@ -279,8 +269,7 @@ function (ncm::NCM)(
             t,
             L,
             τ,
-            α,
-            σ;
+            α;
             method = method,
             maxfgcalls = maxinnerfgcalls,
             innertol = innertol,

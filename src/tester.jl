@@ -57,11 +57,14 @@ function runall(
         ncm.Xold .= X
     end
 
+    L = norm(H.^2)
+
     @time ncm(
         G,
         H,
         method = :IR,
-        τ = 0.95,
+        τ = 0.9,
+        α = 0.001*L,
         maxfgcalls = maxfgcalls,
         tol = tol,
         printlevel = printlevel,

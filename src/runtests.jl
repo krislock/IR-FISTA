@@ -35,9 +35,10 @@ function runtests(
 
     for method in methods
         if method == :IR
-            τ, α, σ = 0.95, 0.0, 1.0
+            L = norm(H.^2)
+            τ, α = 0.9, 0.001*L
         elseif method == :IAPG
-            τ, α, σ = 1.0, 0.0, 1.0
+            τ, α = 1.0, 0.0
         end
 
         if useXold
@@ -50,7 +51,6 @@ function runtests(
             method = method,
             τ = τ,
             α = α,
-            σ = σ,
             tol = tol,
             useXold = useXold,
             maxfgcalls = maxfgcalls,
