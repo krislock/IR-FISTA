@@ -90,8 +90,9 @@ function makeplot(results)
 
     plt = plot(
         yaxis = :log,
-        ylims = [1e-1, 1e+1],
-        xlabel = "total number of inner iterations",
+        ylims = [1e-1, 1e+2],
+        yticks = [1e-1, 1e+0, 1e+1, 1e+2],
+        xlabel = "Total number of inner iterations",
         ylabel = L"\max\{r_p,r_d\}",
         size = (900, 600),
         ls = :auto,
@@ -144,9 +145,9 @@ end
     "time"
 )
 t = @elapsed begin
-    for n = 100:100:300
-        for γ = 0.1:0.1:0.2
-            test(n, γ, maxfgcalls=10_000)
+    for n = 500:100:500
+        for γ = 0.5:0.1:0.5
+            test(n, γ)
         end
     end
 end
