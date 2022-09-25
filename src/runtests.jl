@@ -1,4 +1,5 @@
 using Plots, LaTeXStrings, Printf, Dates
+using JLD
 
 include("tester.jl")
 
@@ -16,9 +17,23 @@ function runtests(
     tol = 1e-1,
     maxfgcalls = 100_000,
     useXold = true,
+    printlevel = 0,
 )
-    methods = [:IR, :IER, :IAPG]
+    methods = (:IR, :IER, :IAPG)
     results = Dict{Symbol, Vector{Float64}}()
+
+    printlevel == 0 && @printf(
+        "%4s %5s %7s %5s %6s %9s %9s %9s %7s\n",
+        "n",
+        "γ",
+        "method",
+        "k",
+        "fgs",
+        "rp",
+        "rd",
+        "ε",
+        "time"
+    )
 
     U, G, H, ncm = genprob(
         n,
@@ -28,18 +43,19 @@ function runtests(
     )
 
     if useXold
-        X, y = CorNewton3(G)
+        #X, y = CorNewton3(G)
+        X = load("CorNewton3solns/n$n-γ$γ.jld", "X")
     end
+
+    H2 = ncm.H2
+    H2.data .= H .^ 2
+    L = fronorm(H2, ncm.proj.work)
 
     for method in methods
         if method == :IR
             τ, α, σ = 0.95, 0.0, 1.0
         elseif method == :IER
-            τ, σ = 1.0, 1.0
-            H2 = ncm.H2
-            H2.data .= H .^ 2
-            L = fronorm(H2, ncm.proj.work)
-            α = round(1 / L, RoundUp, digits = 2)
+            τ, α, σ = 1.0, 19/L, 1.0
         elseif method == :IAPG
             τ, α, σ = 1.0, 0.0, 1.0
         end
@@ -47,7 +63,7 @@ function runtests(
         if useXold
             ncm.Xold .= X
         end
-        @printf("%4d %5.2f %7s ", n, γ, method)
+        printlevel == 0 && @printf("%4d %5.2f %7s ", n, γ, method)
         t = @elapsed success, k = ncm(
             G,
             H,
@@ -58,23 +74,29 @@ function runtests(
             tol = tol,
             useXold = useXold,
             maxfgcalls = maxfgcalls,
-            printlevel = 0,
+            printlevel = printlevel,
         )
         fgcount = ncm.res.fgcountRef[]
         results[method] = ncm.res.resvals[1:fgcount]
         rp = ncm.res.rpRef[]
         rd = ncm.res.rdRef[]
-        @printf("%5d %6d %9.2e %9.2e %7.1f\n", k, fgcount, rp, rd, t)
+        ε  = ncm.res.εRef[]
+        if printlevel == 0
+            @printf("%5d %6d %9.2e %9.2e %9.2e %7.1f",
+                    k, fgcount, rp, rd, ε, t)
+            success || @printf(" <----- FAILED")
+            @printf("\n")
+        end
     end
 
     return results
 end
 
-function makeplot(results)
+function makeplot(results, tol)
 
     plt = plot(
         yaxis = :log,
-        ylims = [1e-1, 1e+2],
+        ylims = [tol, 1e+2],
         xlabel = "function evaluations",
         ylabel = L"\max\{r_p,r_d\}",
         size = (900, 600),
@@ -82,9 +104,20 @@ function makeplot(results)
         lc = :black,
     )
 
-    plot!(plt, results[:IR],   label = "I-FISTA",  ls = :auto, lc = :black)
-    plot!(plt, results[:IER],  label = "IE-FISTA", ls = :auto, lc = :black)
-    plot!(plt, results[:IAPG], label = "IA-FISTA", ls = :auto, lc = :black)
+    method = (:IR, :IER, :IAPG)
+    label  = ("I-FISTA", "IE-FISTA", "IA-FISTA")
+
+    for i = 1:length(method)
+        res = results[method[i]]
+        plot!(plt, res, label=label[i], ls=:auto, lc=:black)
+
+        # Put an "x" on the plot to indicate a method died
+        fgs = length(res)
+        finalres = res[end]
+        if finalres > tol
+            plot!(plt, [fgs], [finalres], m=:x, mc=:black, label=false)
+        end
+    end
 
     return plt
 end
@@ -106,7 +139,7 @@ function test(
         useXold = useXold,
     )
 
-    plt = makeplot(results)
+    plt = makeplot(results, tol)
     filename = @sprintf("n%d-γ%.2f.pdf", n, γ)
     savefig(plt, "../figs/$filename")
 
@@ -115,17 +148,6 @@ end
 
 ############################################################
 
-@printf(
-    "%4s %5s %7s %5s %6s %9s %9s %7s\n",
-    "n",
-    "γ",
-    "method",
-    "k",
-    "fgs",
-    "rp",
-    "rd",
-    "time"
-)
 t = @elapsed begin
     for n = 100:100:800
         for γ = 0.1:0.1:1.0
@@ -134,3 +156,4 @@ t = @elapsed begin
     end
 end
 println(time2str(t))
+
