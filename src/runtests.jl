@@ -1,4 +1,5 @@
 using Plots, LaTeXStrings, Printf, Dates
+using JLD
 
 ENV["GKSwstype"] = "nul"   # Removes plotting error when using VS Code remotely
 
@@ -18,9 +19,23 @@ function runtests(
     tol = 1e-1,
     maxfgcalls = 100_000,
     useXold = true,
+    printlevel = 0,
 )
     methods = [:IR, :IAPG]
     results = Dict{Symbol, Vector{Float64}}()
+
+    printlevel == 0 && @printf(
+        "%4s %5s %7s %5s %6s %9s %9s %9s %7s\n",
+        "n",
+        "γ",
+        "method",
+        "k",
+        "fgs",
+        "rp",
+        "rd",
+        "ε",
+        "time"
+    )
 
     U, G, H, ncm = genprob(
         n,
@@ -30,8 +45,13 @@ function runtests(
     )
 
     if useXold
-        X, y = CorNewton3(G)
+        #X, y = CorNewton3(G)
+        X = load("CorNewton3solns/n$n-γ$γ.jld", "X")
     end
+
+    H2 = ncm.H2
+    H2.data .= H .^ 2
+    L = fronorm(H2, ncm.proj.work)
 
     for method in methods
         plist = [NaN]
@@ -86,7 +106,7 @@ function runtests(
     return results
 end
 
-function makeplot(results)
+function makeplot(results, tol)
 
     plt = plot(
         yaxis = :log,
@@ -124,7 +144,7 @@ function test(
         useXold = useXold,
     )
 
-    plt = makeplot(results)
+    plt = makeplot(results, tol)
     filename = @sprintf("n%d-γ%.2f.pdf", n, γ)
     savefig(plt, "../figs/$filename")
 
@@ -133,17 +153,6 @@ end
 
 ############################################################
 
-@printf(
-    "%4s %5s %7s %5s %6s %9s %9s %7s\n",
-    "n",
-    "γ",
-    "method",
-    "k",
-    "fgs",
-    "rp",
-    "rd",
-    "time"
-)
 t = @elapsed begin
     for n = 500:100:500
         for γ = 0.5:0.1:0.5
@@ -152,3 +161,4 @@ t = @elapsed begin
     end
 end
 println(time2str(t))
+

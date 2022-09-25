@@ -10,6 +10,7 @@ struct NCMresults
     distvals::Vector{Float64}
     rpRef::Base.RefValue{Float64}
     rdRef::Base.RefValue{Float64}
+    εRef::Base.RefValue{Float64}
 
     function NCMresults(n, maxfgcalls)
         X = Symmetric(zeros(n, n))
@@ -21,8 +22,9 @@ struct NCMresults
         distvals = Vector{Float64}(undef, maxfgcalls)
         rpRef = Ref{Float64}(0.0)
         rdRef = Ref{Float64}(0.0)
+        εRef = Ref{Float64}(0.0)
 
-        new(X, y, Λ, fgcountRef, fvals, resvals, distvals, rpRef, rdRef)
+        new(X, y, Λ, fgcountRef, fvals, resvals, distvals, rpRef, rdRef, εRef)
     end
 end
 
@@ -61,7 +63,6 @@ struct NCM
     fRef::Base.RefValue{Float64}
     factr::Base.RefValue{Float64}
     pgtol::Base.RefValue{Float64}
-    εRef::Base.RefValue{Float64}
     proj::ProjPSD
     res::NCMresults
 
@@ -106,8 +107,6 @@ struct NCM
         factr = Ref{Cdouble}(0.0)
         pgtol = Ref{Cdouble}(0.0)
 
-        εRef = Ref{Float64}(0.0)
-
         proj = ProjPSD(n)
 
         res = NCMresults(n, maxfgcalls)
@@ -146,7 +145,6 @@ struct NCM
             fRef,
             factr,
             pgtol,
-            εRef,
             proj,
             res,
         )
@@ -210,6 +208,7 @@ function (ncm::NCM)(
     fgcountRef = res.fgcountRef
     rpRef = res.rpRef
     rdRef = res.rdRef
+    εRef  = res.εRef
     fvals = res.fvals
 
     H2.data .= H .^ 2
@@ -281,28 +280,30 @@ function (ncm::NCM)(
         fgcount = fgcountRef[]
         innerfgcalls = fgcount - (maxfgcalls - maxinnerfgcalls)
 
-        rp, rd = rpRef[], rdRef[]
+        rp, rd, ε = rpRef[], rdRef[], εRef[]
 
         if printlevel ≥ 2
             mod(k, 20) == 1 && @printf(
-                "%4s %8s %10s %10s %10s %10s %10s\n",
+                "%4s %8s %10s %10s %10s %10s %10s %10s\n",
                 "k",
                 "fgcalls",
                 "||g||",
                 "innertol",
                 "f(X)",
                 "rp",
-                "rd"
+                "rd",
+                "ε"
             )
             @printf(
-                "%4d %8d %10.2e %10.2e %10.2e %10.2e %10.2e\n",
+                "%4d %8d %10.2e %10.2e %10.2e %10.2e %10.2e %10.2e\n",
                 k,
                 innerfgcalls,
                 norm(g),
                 innertol,
                 fvals[fgcount],
                 rp,
-                rd
+                rd,
+                ε
             )
         end
 

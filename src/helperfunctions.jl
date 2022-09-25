@@ -1,5 +1,5 @@
+#=
 using MATLAB
-
 function CorNewton3(G)
     @assert issymmetric(G)
     n = size(G, 1)
@@ -8,6 +8,7 @@ function CorNewton3(G)
     "
     return Symmetric(X), y
 end
+=#
 
 function fronorm(A, work)
     lda, n = size(A)

@@ -1,5 +1,8 @@
 # Evaluates dual objective function and its gradient
-function dualobj!(ncm, G, H, L, τ; computeV::Bool = false, scaleX::Bool = true)
+function dualobj!(ncm, G, H, L, τ, α, method;
+    computeV::Bool = false,
+    scaleX::Bool = true
+    )
 
     n = ncm.n
     d = ncm.d
@@ -33,8 +36,14 @@ function dualobj!(ncm, G, H, L, τ; computeV::Bool = false, scaleX::Bool = true)
     res.fgcountRef[] += 1
     fgcount = res.fgcountRef[]
 
-    τdL = τ / L
-    Ldτ = L / τ
+    if method == :IR
+        Lbar = L / τ
+    elseif method == :IER
+        Lbar = 1/α + L
+    else
+        Lbar = L
+    end
+    invLbar = 1/Lbar
 
     # ∇fY = H2.*(Y - G)
     # M = Y - (τ/L)*(∇f(Y) - Diag(y))
@@ -42,9 +51,9 @@ function dualobj!(ncm, G, H, L, τ; computeV::Bool = false, scaleX::Bool = true)
     @inbounds for j = 1:n
         for i = 1:j
             ∇fY.data[i, j] = H2.data[i, j] * (Y.data[i, j] - G.data[i, j])
-            M.data[i, j] = Y.data[i, j] - τdL * ∇fY.data[i, j]
+            M.data[i, j] = Y.data[i, j] - invLbar * ∇fY.data[i, j]
         end
-        M.data[j, j] += τdL * y[j]
+        M.data[j, j] += invLbar * y[j]
     end
 
     proj(M, X, Λ)
@@ -74,13 +83,13 @@ function dualobj!(ncm, G, H, L, τ; computeV::Bool = false, scaleX::Bool = true)
             else
                 Xnew.data[i, j] = X.data[i, j]
             end
-            #Λ.data[i,j] = Ldτ*(X.data[i,j] - M.data[i,j])
-            Λ.data[i, j] *= Ldτ
+            #Λ.data[i,j] = Lbar*(X.data[i,j] - M.data[i,j])
+            Λ.data[i, j] *= Lbar
             Γ.data[i, j] = -Λ.data[i, j]
             Z.data[i, j] = Xnew.data[i, j] - Y.data[i, j]
             if computeV
-                #V.data[i, j] = ∇fY.data[i, j] + Ldτ * Z.data[i, j] + Γ.data[i, j]
-                V.data[i,j] = Ldτ * (Xnew.data[i,j] - X.data[i,j])
+                #V.data[i, j] = ∇fY.data[i, j] + Lbar * Z.data[i, j] + Γ.data[i, j]
+                V.data[i,j] = Lbar * (Xnew.data[i,j] - X.data[i,j])
             end
             R.data[i, j] = H.data[i, j] * (Xnew.data[i, j] - G.data[i, j])
             Rd.data[i, j] = H.data[i, j] * R.data[i, j] + Γ.data[i, j]
@@ -117,7 +126,7 @@ function dualobj!(ncm, G, H, L, τ; computeV::Bool = false, scaleX::Bool = true)
             dualobjval += tmp^2
         end
     end
-    dualobjval *= 0.5 * Ldτ
+    dualobjval *= 0.5 * Lbar
     dualobjval -= sum(y)
 
     return dualobjval

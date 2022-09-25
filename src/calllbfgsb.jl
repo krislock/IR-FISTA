@@ -38,7 +38,6 @@ function calllbfgsb!(
 
     V = ncm.V
     Z = ncm.Z
-    εRef = ncm.εRef
 
     wa = ncm.wa
     iwa = ncm.iwa
@@ -71,6 +70,7 @@ function calllbfgsb!(
     resvals = res.resvals
     distvals = res.distvals
     fgcountRef = res.fgcountRef
+    εRef = res.εRef
 
     # Reset L-BFGS-B arrays
     fill!(wa, 0.0)
@@ -134,6 +134,8 @@ function calllbfgsb!(
                     H,
                     L,
                     τ,
+                    α,
+                    method,
                     computeV = computeV,
                     scaleX = scaleX,
                 )
@@ -157,7 +159,6 @@ function calllbfgsb!(
                     else
                         dist = distvals[fgcountRef[]]
                         if method == :IR
-                            δ = fronorm(V, proj.work)
                             lhs = (τ * δ)^2 + 2τ * ε * L
                             rhs = L * ((1 - τ) * L - α * τ) * dist^2
                             condition = (lhs ≤ rhs)
