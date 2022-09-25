@@ -1,6 +1,8 @@
 using Plots, LaTeXStrings, Printf, Dates
 using JLD
 
+ENV["GKSwstype"] = "nul"   # Removes plotting error when using VS Code remotely
+
 include("tester.jl")
 
 function time2str(t)
@@ -19,7 +21,7 @@ function runtests(
     useXold = true,
     printlevel = 0,
 )
-    methods = (:IR, :IER, :IAPG)
+    methods = [:IR, :IAPG]
     results = Dict{Symbol, Vector{Float64}}()
 
     printlevel == 0 && @printf(
@@ -52,40 +54,52 @@ function runtests(
     L = fronorm(H2, ncm.proj.work)
 
     for method in methods
+        plist = [NaN]
         if method == :IR
-            τ, α, σ = 0.95, 0.0, 1.0
-        elseif method == :IER
-            τ, α, σ = 1.0, 19/L, 1.0
+            L = norm(H.^2)
+            τ, α = 0.9, 0.001*L
         elseif method == :IAPG
-            τ, α, σ = 1.0, 0.0, 1.0
+            τ, α = 1.0, 0.0
+            plist = [2.0, 3.0, 4.0]
         end
 
-        if useXold
-            ncm.Xold .= X
-        end
-        printlevel == 0 && @printf("%4d %5.2f %7s ", n, γ, method)
-        t = @elapsed success, k = ncm(
-            G,
-            H,
-            method = method,
-            τ = τ,
-            α = α,
-            σ = σ,
-            tol = tol,
-            useXold = useXold,
-            maxfgcalls = maxfgcalls,
-            printlevel = printlevel,
-        )
-        fgcount = ncm.res.fgcountRef[]
-        results[method] = ncm.res.resvals[1:fgcount]
-        rp = ncm.res.rpRef[]
-        rd = ncm.res.rdRef[]
-        ε  = ncm.res.εRef[]
-        if printlevel == 0
-            @printf("%5d %6d %9.2e %9.2e %9.2e %7.1f",
-                    k, fgcount, rp, rd, ε, t)
-            success || @printf(" <----- FAILED")
-            @printf("\n")
+        for p in plist
+            if useXold
+                ncm.Xold .= X
+            end
+
+            if method == :IR
+                id = :IR
+            elseif method == :IAPG
+                if p == 2.0
+                    id = :IAPG2
+                elseif p == 3.0
+                    id = :IAPG3
+                elseif p == 4.0
+                    id = :IAPG4
+                else
+                    error("p is not 2, 3, or 4")
+                end
+            end
+
+            @printf("%4d %5.2f %7s ", n, γ, id)
+            t = @elapsed success, k = ncm(
+                G,
+                H,
+                method = method,
+                p = p,
+                τ = τ,
+                α = α,
+                tol = tol,
+                useXold = useXold,
+                maxfgcalls = maxfgcalls,
+                printlevel = 0,
+            )
+            fgcount = ncm.res.fgcountRef[]
+            results[id] = ncm.res.resvals[1:fgcount]
+            rp = ncm.res.rpRef[]
+            rd = ncm.res.rdRef[]
+            @printf("%5d %6d %9.2e %9.2e %7.1f\n", k, fgcount, rp, rd, t)
         end
     end
 
@@ -96,28 +110,19 @@ function makeplot(results, tol)
 
     plt = plot(
         yaxis = :log,
-        ylims = [tol, 1e+2],
-        xlabel = "function evaluations",
+        ylims = [1e-1, 1e+2],
+        yticks = [1e-1, 1e+0, 1e+1, 1e+2],
+        xlabel = "Total number of inner iterations",
         ylabel = L"\max\{r_p,r_d\}",
         size = (900, 600),
         ls = :auto,
         lc = :black,
     )
 
-    method = (:IR, :IER, :IAPG)
-    label  = ("I-FISTA", "IE-FISTA", "IA-FISTA")
-
-    for i = 1:length(method)
-        res = results[method[i]]
-        plot!(plt, res, label=label[i], ls=:auto, lc=:black)
-
-        # Put an "x" on the plot to indicate a method died
-        fgs = length(res)
-        finalres = res[end]
-        if finalres > tol
-            plot!(plt, [fgs], [finalres], m=:x, mc=:black, label=false)
-        end
-    end
+    plot!(plt, results[:IR],    label = "I-FISTA",        ls=:solid)
+    plot!(plt, results[:IAPG2], label = "IA-FISTA (p=2)", ls=:dash)
+    plot!(plt, results[:IAPG3], label = "IA-FISTA (p=3)", ls=:dot)
+    plot!(plt, results[:IAPG4], label = "IA-FISTA (p=4)", ls=:dashdot)
 
     return plt
 end
@@ -149,8 +154,8 @@ end
 ############################################################
 
 t = @elapsed begin
-    for n = 100:100:800
-        for γ = 0.1:0.1:1.0
+    for n = 500:100:500
+        for γ = 0.5:0.1:0.5
             test(n, γ)
         end
     end

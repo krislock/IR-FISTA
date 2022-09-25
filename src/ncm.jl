@@ -156,10 +156,10 @@ function (ncm::NCM)(
     G::Symmetric{Float64,Array{Float64,2}},
     H::Symmetric{Float64,Array{Float64,2}};
     method::Symbol = :IAPG,
+    p::Float64 = 2.0,
     τ::Float64 = 1.0,
     α::Float64 = 0.0,
-    σ::Float64 = 1.0,
-    tol::Float64 = 1e-1,
+    tol::Float64 = 1e-2,
     kmax::Int64 = 100_000,
     maxfgcalls::Int64 = 100_000,
     printlevel::Int64 = 1,
@@ -176,13 +176,13 @@ function (ncm::NCM)(
     #∇f(X) = Symmetric(H2.*(X .- G))
 
     n = size(G, 1)
-    validmethod = (method == :IAPG || method == :IR || method == :IER)
+    validmethod = (method == :IAPG || method == :IR)
 
     # Check for valid input
     if maxfgcalls > ncm.maxfgcalls
         error("require maxfgcalls ≤ ncm.maxfgcalls")
     end
-    validmethod || error("method must be :IAPG or :IR or :IER")
+    validmethod || error("method must be :IAPG or :IR")
     n == ncm.n || error("require n == ncm.n")
     size(G) == size(H) || error("G and H must be the same size")
     issymmetric(G) || error("G must be symmetric")
@@ -218,26 +218,15 @@ function (ncm::NCM)(
 
     if method == :IAPG
         τ == 1 || error("IAPG method requires τ = 1")
-        t0 = 1.0
     end
 
     if method == :IR
         0 < τ ≤ 1 || error("IR method requires 0 < τ ≤ 1")
         0 ≤ α ≤ (1 - τ) * (L / τ) ||
         error("IR method requires 0 ≤ α ≤ $((1 - τ)*(L/τ))")
-        t0 = 1.0
     end
 
-    if method == :IER
-        τ == 1 || error("IER method requires τ = 1")
-        # α = 19/L
-        α > 0 || error("IER method requires α > 0")
-        0 ≤ σ ≤ 1 || error("IER method requires 0 ≤ σ ≤ 1")
-        λ = α / (1 + α * L)
-        t0 = 0.0
-    end
-
-    printlevel ≥ 1 && println("$method method, τ=$τ, α=$α, σ=$σ, tol=$tol")
+    printlevel ≥ 1 && println("$method method, τ=$τ, α=$α, tol=$tol")
 
     if !useXold
         fill!(Xold, 0.0)
@@ -246,7 +235,7 @@ function (ncm::NCM)(
     fill!(y, 0.0)
 
     k = 0
-    t = t0
+    t = 1.0
     Y .= Xold
     innertol = NaN
     rp = rd = Inf
@@ -254,26 +243,14 @@ function (ncm::NCM)(
     fgcountRef[] = 0
     fgcount = fgcountRef[]
 
-    while (innersuccess &&
-        max(rp, rd) > tol && k < kmax && fgcount < maxfgcalls
-    )
+    while (#innersuccess &&
+        max(rp, rd) > tol && k < kmax && fgcount < maxfgcalls)
 
         k += 1
+        tnew = (1 + √(1 + 4 * t^2)) / 2
 
-        if method == :IER || method == :ER
-            tnew = t + (λ + √(λ^2 + 4λ * t)) / 2
-            Y.data .=
-                (t / tnew) .* Xnew.data .+ ((tnew - t) / tnew) .* Xold.data
-        else
-            tnew = (1 + √(1 + 4 * t^2)) / 2
-        end
-
-        if method == :IAPG || method == :ER
-            innertol = 1 / t^2
-        end
-
-        if exact
-            innertol = 0.0
+        if method == :IAPG
+            innertol = k^-p
         end
 
         maxinnerfgcalls = maxfgcalls - fgcount
@@ -287,8 +264,7 @@ function (ncm::NCM)(
             t,
             L,
             τ,
-            α,
-            σ;
+            α;
             method = method,
             maxfgcalls = maxinnerfgcalls,
             innertol = innertol,
@@ -340,8 +316,6 @@ function (ncm::NCM)(
                 Xnew.data .- ((t / tnew) * (τ / L)) .* V.data .+
                 ((t - 1) / tnew) .* (Xnew.data .- Xold.data)
             Xold .= Xnew
-        elseif method == :IER
-            Xold.data .-= (tnew - t) .* (V.data .+ (Y.data .- Xnew.data)./λ)
         end
 
         t = tnew

@@ -22,8 +22,7 @@ function calllbfgsb!(
     t,
     L,
     τ,
-    α,
-    σ;
+    α;
     method::Symbol = :IAPG,
     innertol::Float64 = 1e-2,
     maxfgcalls::Int64 = 100,
@@ -87,7 +86,7 @@ function calllbfgsb!(
 
     StopBFGS = false
     successful = true
-    computeV = (method == :IAPG || method == :IR || method == :IER)
+    computeV = (method == :IAPG || method == :IR)
 
     # "We start the iteration by initializing task."
     copyto!(task, START)
@@ -152,19 +151,16 @@ function calllbfgsb!(
                     ε = max(0.0, εRef[])
                     if method == :IAPG
                         δ = fronorm(V, proj.work)
-                        lhs = 1/√L * δ
-                        rhs = innertol / (√2 * t)
-                        condition = (lhs ≤ rhs) && (ε ≤ innertol / (2*t^2))
+                        #lhs = 1/√L * δ
+                        #rhs = innertol / (√2 * t)
+                        lhs = δ^2 + 2 * ε * L
+                        rhs = innertol
+                        condition = (lhs ≤ rhs)
                     else
-                        δ = fronorm(V, proj.work)
                         dist = distvals[fgcountRef[]]
                         if method == :IR
                             lhs = (τ * δ)^2 + 2τ * ε * L
                             rhs = L * ((1 - τ) * L - α * τ) * dist^2
-                            condition = (lhs ≤ rhs)
-                        elseif method == :IER
-                            lhs = (α * δ)^2 + 2α * ε
-                            rhs = (σ * dist)^2
                             condition = (lhs ≤ rhs)
                         end
                     end

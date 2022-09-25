@@ -10,7 +10,7 @@ The `src` directory contains our implementation of I-FISTA, IE-FISTA, and IA-FIS
 To run the numerical tests:
 
 `cd src` <br>
-`julia runtests.jl`
+`julia --project=.. runtests.jl`
 
 Uses the MATLAB code [`CorNewton3.m`](https://www.polyu.edu.hk/ama/profile/dfsun/CorNewton3.m) by Houduo Qi, Defeng Sun, and Yan Gao to obtain a good initial point by solving the nearest correlation problem. `CorNewton3.m` is based on the algorithm in the following paper.
 

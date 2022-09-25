@@ -69,12 +69,12 @@ function dualobj!(ncm, G, H, L, τ, α, method;
         end
     end
 
-    # Λ  = Lbar*(X - M)        # Λ is psd
-    # Γ  = -Diag(y) - Λ        # Γ is an ε-subgradient
-    # Z  = Xnew - Y            # used to compute ||Xnew - Y||
-    # V  = ∇f(Y) + Lbar*Z + Γ  # used in the IR and IER updates
-    # R  = H.*(Xnew - G)       # used to compute primal objective
-    # Rd = H.*R + Γ            # used to compute dual feasibility
+    # Λ  = Ldτ*(X - M)        # Λ is psd
+    # Γ  = -Diag(y) - Λ       # Γ is an ε-subgradient
+    # Z  = Xnew - Y           # used to compute ||Xnew - Y||
+    # V  = ∇f(Y) + Ldτ*Z + Γ  # used in the IR update
+    # R  = H.*(Xnew - G)      # used to compute primal objective
+    # Rd = H.*R + Γ           # used to compute dual feasibility
 
     @inbounds for j = 1:n
         for i = 1:j

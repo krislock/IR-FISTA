@@ -57,31 +57,14 @@ function runall(
         ncm.Xold .= X
     end
 
+    L = norm(H.^2)
+
     @time ncm(
         G,
         H,
         method = :IR,
-        τ = 0.95,
-        maxfgcalls = maxfgcalls,
-        tol = tol,
-        printlevel = printlevel,
-        useXold = useXold,
-    )
-
-    if useXold
-        ncm.Xold .= X
-    end
-
-    H2 = ncm.H2
-    H2.data .= H .^ 2
-    L = fronorm(H2, ncm.proj.work)
-
-    @time ncm(
-        G,
-        H,
-        method = :IER,
-        α = 19/L,
-        σ = 1.0,
+        τ = 0.9,
+        α = 0.001*L,
         maxfgcalls = maxfgcalls,
         tol = tol,
         printlevel = printlevel,
