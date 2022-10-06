@@ -1,3 +1,6 @@
+import Pkg
+Pkg.instantiate()
+
 using Plots, LaTeXStrings, Printf, Dates
 using JLD
 
@@ -23,19 +26,6 @@ function runtests(
 )
     methods = [:IR, :IAPG]
     results = Dict{Symbol, Vector{Float64}}()
-
-    printlevel == 0 && @printf(
-        "%4s %5s %7s %5s %6s %9s %9s %9s %7s\n",
-        "n",
-        "γ",
-        "method",
-        "k",
-        "fgs",
-        "rp",
-        "rd",
-        "ε",
-        "time"
-    )
 
     U, G, H, ncm = genprob(
         n,
@@ -135,6 +125,7 @@ function test(
     maxfgcalls = 100_000,
     useXold = true,
 )
+
     results = runtests(
         n,
         γ,
@@ -153,12 +144,24 @@ end
 
 ############################################################
 
+@printf(
+    "%4s %5s %7s %5s %6s %9s %9s %7s\n",
+    "n",
+    "γ",
+    "method",
+    "k",
+    "fgs",
+    "rp",
+    "rd",
+    "time"
+)
+
 t = @elapsed begin
-    for n = 500:100:500
-        for γ = 0.5:0.1:0.5
+    for n = 100:100:800
+        for γ = 0.1:0.1:1.0
             test(n, γ)
         end
     end
 end
-println(time2str(t))
+#println(time2str(t))
 
