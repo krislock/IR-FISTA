@@ -2,10 +2,10 @@
 
 This repository contains the code developed for the numerical tests in the following paper.
 
-> Yunier Bello-Cruz, Max L. N. Gonçalves, and Nathan Krislock. On Inexact Accelerated Proximal Gradient Methods with Relative Error Rules. Submitted May 6, 2020.
+> Yunier Bello-Cruz, Max L. N. Gonçalves, and Nathan Krislock. On FISTA with a relative error rule. Submitted May 2, 2022.
 [ Preprint ](http://www.optimization-online.org/DB_HTML/2020/05/7778.html)
 
-The `src` directory contains our implementation of I-FISTA, IE-FISTA, and IA-FISTA for solving the $H$-weighted nearest correlation matrix (NCM) problem.
+The `src` directory contains our implementation of I-FISTA and IA-FISTA for solving the $H$-weighted nearest correlation matrix (NCM) problem.
 
 To run the numerical tests:
 
