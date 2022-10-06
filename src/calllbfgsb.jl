@@ -149,8 +149,8 @@ function calllbfgsb!(
                 elseif !exact
                     εRef[] = symdot(Xnew, Λ)
                     ε = max(0.0, εRef[])
+                    δ = fronorm(V, proj.work)
                     if method == :IAPG
-                        δ = fronorm(V, proj.work)
                         #lhs = 1/√L * δ
                         #rhs = innertol / (√2 * t)
                         lhs = δ^2 + 2 * ε * L
