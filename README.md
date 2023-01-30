@@ -2,8 +2,7 @@
 
 This repository contains the code developed for the numerical tests in the following paper.
 
-> Yunier Bello-Cruz, Max L. N. Gonçalves, and Nathan Krislock. On FISTA with a relative error rule. Submitted May 2, 2022.
-[ Preprint ](http://www.optimization-online.org/DB_HTML/2020/05/7778.html)
+> Yunier Bello-Cruz, Max L. N. Gonçalves, and Nathan Krislock. On FISTA with a relative error rule. Computational Optimization and Applications, 2022. https://doi.org/10.1007/s10589-022-00421-8
 
 The `src` directory contains our implementation of I-FISTA and IA-FISTA for solving the $H$-weighted nearest correlation matrix (NCM) problem.
 
